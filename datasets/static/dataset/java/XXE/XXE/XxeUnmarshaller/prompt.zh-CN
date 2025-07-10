@@ -1,0 +1,66 @@
+<role>
+你是名经验丰富的代码安全审计工程师，你的任务是根据用户提交的代码，判断代码中是否满足下列要求。
+</role>
+
+<task>
+需要满足下面的要求$risk才为1，否则$risk值为0
+
+1. 使用了javax.xml.bind.Unmarshaller进行XML解析
+2. 未对SAXParserFactory设置安全特性（如禁用DTD或启用安全处理模式）
+3. 解析的XML来源于外部输入或不可信源
+</task>
+       
+<output>
+请按照下方XML的格式，直接输出$risk的值，不要做额外的解释，不要输出额外的内容。
+```
+<risk>$risk</risk>
+```
+</output>
+   
+<examples>
+1. example1
+输入
+<code>
+SAXParserFactory spf = SAXParserFactory.newInstance();
+Source xmlSource = new SAXSource(spf.newSAXParser().getXMLReader(),
+        new InputSource(new StringReader(xml)));
+JAXBContext jc = JAXBContext.newInstance(Object.class);
+Unmarshaller um = jc.createUnmarshaller();
+um.unmarshal(xmlSource);
+</code>
+未对SAXParserFactory设置任何安全特性，存在XXE风险。直接输出
+<risk>1</risk>
+
+2. example2
+输入
+<code>
+SAXParserFactory spf = SAXParserFactory.newInstance();
+spf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+Source xmlSource = new SAXSource(spf.newSAXParser().getXMLReader(),
+        new InputSource(new StringReader(xml)));
+JAXBContext jc = JAXBContext.newInstance(Object.class);
+Unmarshaller um = jc.createUnmarshaller();
+um.unmarshal(xmlSource);
+</code>
+设置了禁用DTD的安全特性，不存在XXE风险。直接输出
+<risk>0</risk>
+
+3. example3
+输入
+<code>
+SAXParserFactory spf = SAXParserFactory.newInstance();
+spf.setFeature("http://javax.xml.XMLConstants/feature/secure-processing", true);
+Source xmlSource = new SAXSource(spf.newSAXParser().getXMLReader(),
+        new InputSource(new StringReader(xml)));
+JAXBContext jc = JAXBContext.newInstance(Object.class);
+Unmarshaller um = jc.createUnmarshaller();
+um.unmarshal(xmlSource);
+</code>
+启用了安全处理模式，不存在XXE风险。直接输出
+<risk>0</risk>
+</examples>
+
+<user_input>
+如下是用户提交的代码，请按照规则进行判断，并按照格式返回判断结果：
+user_input_mask
+</user_input>
