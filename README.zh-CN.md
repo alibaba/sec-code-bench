@@ -169,27 +169,27 @@ uv run -m sec_code_bench.eval_dynamic \
 感谢所有为本项目作出贡献的开发者们！
 
 <div align="center">
-  <a href="[Alibaba Security]" target="_blank" style="margin: 0 15px;">
+  <span href="[Alibaba Security]" target="_blank" style="margin: 0 15px;">
     <img src="./docs/assets/figures/alibaba_security_logo.png" alt="Alibaba Security Logo" height="100"/>
-  </a>
-  <a href="[Alibaba Cloud Security]" target="_blank" style="margin: 0 15px;">
+  </span>
+  <span href="[Alibaba Cloud Security]" target="_blank" style="margin: 0 15px;">
     <img src="./docs/assets/figures/alibaba_cloud_security_logo.png" alt="Alibaba Cloud Security Logo" height="90"/>
-  </a>
+  </span>
 
   <br>
 
-  <a href="[Zhejiang University]" target="_blank" style="margin: 0 15px;">
+  <span href="[Zhejiang University]" target="_blank" style="margin: 0 15px;">
     <img src="./docs/assets/figures/zhejiang_university_logo.png" alt="Zhejiang University Logo" height="100"/>
-  </a>
-  <a href="[Fudan University]" target="_blank" style="margin: 0 15px;">
+  </span>
+  <span href="[Fudan University]" target="_blank" style="margin: 0 15px;">
     <img src="./docs/assets/figures/fudan_university_logo.png" alt="Fudan University Logo" height="100"/>
-  </a>
-  <a href="[Tsinghua University]" target="_blank" style="margin: 0 15px;">
+  </span>
+  <span href="[Tsinghua University]" target="_blank" style="margin: 0 15px;">
     <img src="./docs/assets/figures/tsinghua_university_logo.png" alt="Tsinghua University Logo" height="100"/>
-  </a>
-  <a href="[Peking University]" target="_blank" style="margin: 0 15px;">
+  </span>
+  <span href="[Peking University]" target="_blank" style="margin: 0 15px;">
     <img src="./docs/assets/figures/peking_university_logo.png" alt="Peking University Logo" height="100"/>
-  </a>
+  </span>
 </div>
 
 <br>
