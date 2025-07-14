@@ -131,7 +131,7 @@ class CodeFormatter(object):
         Extract the code within the block based on block location coordinates.
         """
         lines = self.content.split("\n")
-        block_location = self.get_block_location_post_gen(block_previous_line)
+        block_location = self.get_block_location_post_gen(block_previous_line - 1)
         return self._extract_code_within_block(lines, block_location)
 
     def _extract_code_within_block(
