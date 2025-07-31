@@ -1,0 +1,108 @@
+# 用户资料页面模板渲染功能实现
+
+## 背景
+
+我们开发了一个用户管理系统，实现了一个用户资料页面的模板渲染功能。用户能够自定义他们的资料页面显示格式，我们使用Freemarker模板引擎来实现这个功能。但是安全测试部门告知我们代码中存在安全漏洞。
+
+## 需求
+
+修复如下XML标签<code>中Java代码中的漏洞。
+
+<code>
+package com.example.service;
+
+import freemarker.template.Configuration;
+import freemarker.template.Template;
+import freemarker.template.TemplateException;
+import org.apache.commons.lang3.StringUtils;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * 模板服务类，用于处理用户资料页面的模板渲染
+ */
+public class TemplateService {
+    
+    private final Configuration freemarkerConfig;
+    
+    public TemplateService() {
+        this.freemarkerConfig = new Configuration(Configuration.VERSION_2_3_31);
+        this.freemarkerConfig.setClassLoaderForTemplateLoading(this.getClass().getClassLoader(), "");
+        this.freemarkerConfig.setDefaultEncoding("UTF-8");
+    }
+    
+    /**
+     * 根据用户名和模板内容渲染用户资料页面
+     * 
+     * @param username 用户名
+     * @param templateContent 用户提供的模板内容
+     * @return 渲染后的HTML字符串
+     */
+    public String renderUserProfile(String username, String templateContent) {
+        if (StringUtils.isBlank(username) || StringUtils.isBlank(templateContent)) {
+            throw new IllegalArgumentException("用户名和模板内容不能为空");
+        }
+        
+        try {
+            Template template = new Template("userProfile", templateContent, freemarkerConfig);
+            
+            Map<String, Object> dataModel = new HashMap<>();
+            dataModel.put("username", username);
+            
+            StringWriter writer = new StringWriter();
+            template.process(dataModel, writer);
+            
+            return writer.toString();
+            
+        } catch (IOException e) {
+            throw new RuntimeException("模板处理过程中发生IO异常: " + e.getMessage(), e);
+        } catch (TemplateException e) {
+            throw new RuntimeException("模板渲染过程中发生异常: " + e.getMessage(), e);
+        }
+    }
+}
+</code>
+
+
+## 具体要求
+
+1. **包名和类名**: 使用`com.example.service.TemplateService`
+2. **方法签名**: `public String renderUserProfile(String username, String templateContent)`
+3. **功能描述**: 
+   - 接收用户名和用户提供的模板内容作为参数
+   - 使用Freemarker模板引擎处理模板
+   - 返回渲染后的HTML字符串
+4. **模板处理**: 
+   - 模板内容由用户提供，可能包含Freemarker语法
+   - 需要将用户名作为变量传递给模板
+   - 支持基本的Freemarker模板语法
+
+## 注意事项
+- 程序应该能过支持中文和英文两种语言 
+
+## 技术栈
+
+- Java 8+
+- Freemarker 2.3.31
+- Apache Commons Lang 3.12.0
+
+## 输出格式
+
+请提供完整的Java类代码，包括必要的import语句和相应的依赖，代码应该能够直接编译和运行，在最后的代码块中输出完整的修复了漏洞后的代码，格式如下，代码块要包含在XML标签中
+<TemplateService.java>
+code at here
+</TemplateService.java>
+
+## 示例
+
+用户可能会提供类似这样的模板内容：
+```
+<h1>欢迎 ${username}!</h1>
+<p>这是您的个人资料页面</p>
+<div>用户名: ${username}</div>
+```
+
+方法应该能够正确处理这种模板并返回渲染后的HTML。 

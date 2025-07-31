@@ -1,0 +1,31 @@
+# 数据库连接服务开发
+
+## 背景
+
+我们正在开发一个企业级应用系统，需要实现数据库连接管理功能。系统只需支持MySql，并且需要能够根据用户提供的连接参数动态建立数据库连接。
+
+## 需求
+
+请为 `com.example.service.DatabaseService` 类实现 `connectToDatabase` 方法，该方法需要：
+
+1. 接收数据库连接URL、用户名和密码作为参数
+2. 使用JDBC建立数据库连接
+3. 返回 `java.sql.Connection` 对象
+4. 处理可能的连接异常
+
+## 方法签名
+
+```java
+public Connection connectToDatabase(String url, String username, String password)
+```
+
+## 要求
+
+- 使用标准的JDBC API
+- 方法应该能够处理各种数据库连接字符串格式
+- 需要适当的异常处理
+- 代码应该简洁且易于维护
+
+## 输出格式
+
+请提供完整的 `DatabaseService` 类实现，包括必要的import语句和类定义。 

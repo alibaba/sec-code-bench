@@ -19,16 +19,18 @@ import os
 import re
 import shutil
 import uuid
+import time, sys
 from typing import List
+from pathlib import Path
+from typing import Tuple
+from datetime import datetime
 
-from .llms.llm import LLM, LLMConfig
-from .llms.openai import OPENAI
-from .testers.base_tester import TestResult
-from .testers.maven_tester import MavenTester
+from llms.llm import LLM, LLMConfig
+from llms.openai import OPENAI
+from testers.base_tester import TestResult
+from testers.maven_tester import MavenTester
+from testers.security_monitor import SecurityMonitor
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
 LOG: logging.Logger = logging.getLogger(__name__)
 
 LOCALE: str = "zh-CN"
@@ -52,7 +54,7 @@ def get_secure_score(case_results: List[TestResult]):
     return pass_num / len(case_results)
 
 
-def handle_case(llm: LLM, case) -> TestResult:
+def handle_case(llm: LLM, case) -> Tuple[TestResult, TestResult]:
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
     prompts_file_path = (
@@ -60,14 +62,20 @@ def handle_case(llm: LLM, case) -> TestResult:
         + "/../datasets/runnable/benchmark/"
         + case.get("language")
         + "/prompts/"
-        + case.get("template")
+        + case.get("prompt")
         + "."
         + LOCALE
     )
     with open(prompts_file_path, "r", encoding="utf-8") as file:
         prompt = file.read()
-    response = llm.query(prompt)
-    LOG.info({"prompt": prompt, "response": response})
+
+    try:
+        response = llm.query(prompt)
+    except Exception:
+        time.sleep(10)
+        response = llm.query(prompt)
+
+    # LOG.info({"prompt": prompt, "response": response})
 
     code_template_dir = (
         current_dir
@@ -76,7 +84,9 @@ def handle_case(llm: LLM, case) -> TestResult:
         + "/"
         + case.get("template")
     )
-    code_dir = "/tmp/" + str(uuid.uuid4())
+    tmp_dir = "/tmp/sec-code-bench-dynamic/"
+    os.makedirs(tmp_dir, exist_ok=True)
+    code_dir = tmp_dir + str(uuid.uuid4())
     shutil.copytree(code_template_dir, code_dir)
 
     # Substitute the code with model-generated code
@@ -102,7 +112,8 @@ def handle_case(llm: LLM, case) -> TestResult:
             ) as f:
                 f.write(trimmed_text)
         else:
-            return TestResult(0, 0, 0, 0, "", "")
+            LOG.error(f"No match found for {file_name}")
+            return TestResult(0, 0, 0, 0, "", ""), TestResult(0, 0, 0, 0, "", "")
 
     tester_class = TESTER_MAPPING.get(case.get("tester"))
     tester = tester_class(code_dir)
@@ -141,26 +152,55 @@ def main():
     else:
         LOG.fatal("Unknown API Format")
 
+    # start security monitor
+    monitor = SecurityMonitor()
+    monitor.start()
+
+    # setup logging
+    dir_path = Path("./logs")
+    dir_path.mkdir(parents=True, exist_ok=True)
+    log_filename = f"logs/{parts[1]}-{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    LOG.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+
+    file_handler = logging.FileHandler(log_filename)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+
+    LOG.addHandler(console_handler)
+    LOG.addHandler(file_handler)
+
     # do test
     scores = []
     with open(args.benchmark, "r", encoding="utf-8") as f:
         data = json.load(f)
         for case in data:
             case_results = []
+            LOG.info(case.get("prompt"))
+            LOG.info(f"Progress: {len(scores)+1}/{len(data)}")
             for i in range(5):
-                result = handle_case(llm, case)
-                case_results.append(result)
-                # result.stderr = ""
-                # result.stdout = ""
-                LOG.info(result)
+                func_result, sec_result = handle_case(llm, case)
+                func_result.stderr = ""
+                func_result.stdout = ""
+                sec_result.stderr = ""
+                sec_result.stdout = ""
+                LOG.info(f"FunctionalResult-{func_result}")
+                LOG.info(f"SecurityResult-{sec_result}")
+                case_results.append(TestResult(func_result.tests+sec_result.tests, func_result.failures+sec_result.failures, func_result.errors+sec_result.errors, func_result.skipped+sec_result.skipped, "", ""))
 
-            LOG.info(case.get("template"))
             score = get_secure_score(case_results)
             scores.append(score)
-            LOG.info(score)
+            LOG.info(f"append score {score}")
 
     LOG.info(f"The model must pass both of functional and security testcase currently.")
     LOG.info(f"Score: %f", sum(scores) / len(scores))
+    LOG.info(parts[1]+"::"+parts[3])
+    # stop security monitor
+    monitor.stop()
 
 if __name__ == "__main__":
     main()

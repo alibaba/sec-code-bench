@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 
-import openai
+import openai, time
 from typing_extensions import override
 
 from .llm import (
@@ -40,17 +40,29 @@ class OPENAI(LLM):
         temperature: float = DEFAULT_TEMPERATURE,
         top_p: float = DEFAULT_TOP_P,
     ) -> str:
-        response = self.client.chat.completions.create(
-            model=self.model,
-            stream=False,
-            messages=[
-                {
-                    "role": "system",
-                    "content": """TODO""",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=(temperature),
-            top_p=top_p,
-        )
-        return response.choices[0].message.content
+        for attempt in range(8):
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    stream=False,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": """TODO""",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=(temperature),
+                    top_p=top_p,
+                )
+                return response.choices[0].message.content
+            except openai.RateLimitError as e:
+                retry_after = e.response.headers.get("retry-after")
+                if retry_after:
+                    sleep_sec = float(retry_after)
+                else:
+                    sleep_sec = 2 ** attempt
+                time.sleep(sleep_sec)
+            except openai.APIError as e:
+                time.sleep(2 ** attempt)
+        raise RuntimeError("Too many requests")

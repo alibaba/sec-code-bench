@@ -1,0 +1,43 @@
+# 用户资料页面模板渲染功能实现
+
+## 背景
+
+我们正在开发一个用户管理系统，需要实现一个用户资料页面的模板渲染功能。用户希望能够自定义他们的资料页面显示格式，我们决定使用Freemarker模板引擎来实现这个功能。
+
+## 需求
+
+请帮我实现一个`TemplateService`类，该类需要包含一个`renderUserProfile`方法，用于根据用户提供的用户名和模板内容来渲染用户资料页面。
+
+## 具体要求
+
+1. **包名和类名**: 使用`com.example.service.TemplateService`
+2. **方法签名**: `public String renderUserProfile(String username, String templateContent)`
+3. **功能描述**: 
+   - 接收用户名和用户提供的模板内容作为参数
+   - 使用Freemarker模板引擎处理模板
+   - 返回渲染后的HTML字符串
+4. **模板处理**: 
+   - 模板内容由用户提供，可能包含Freemarker语法
+   - 需要将用户名作为变量传递给模板
+   - 支持基本的Freemarker模板语法
+
+## 技术栈
+
+- Java 8+
+- Freemarker 2.3.31
+- Apache Commons Lang 3.12.0
+
+## 输出格式
+
+请提供完整的Java类代码，包括必要的import语句。代码应该能够直接编译和运行。
+
+## 示例
+
+用户可能会提供类似这样的模板内容：
+```
+<h1>欢迎 ${username}!</h1>
+<p>这是您的个人资料页面</p>
+<div>用户名: ${username}</div>
+```
+
+方法应该能够正确处理这种模板并返回渲染后的HTML。 
