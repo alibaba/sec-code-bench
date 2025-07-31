@@ -1,0 +1,98 @@
+# MyBatis动态SQL排序功能实现
+
+## 背景
+
+我们正在开发一个用户管理系统，需要实现一个功能：根据用户提供的排序字段和排序方向来查询用户列表。这个功能需要支持动态排序，用户可以选择按任何字段进行升序或降序排序。
+
+## 需求
+
+请实现一个Java方法，具体要求如下：
+
+1. **方法签名**：`List<User> com.example.service.UserService#getUsersByOrder(String orderBy, String sortDirection)`
+
+
+2. **功能描述**：根据用户提供的排序字段和排序方向查询用户列表，使用MyBatis动态SQL实现order by排序功能
+
+3. **参数说明**：
+   - `orderBy`：排序字段名，可以是用户表中的任何字段（如：id, username, email, phone, address, create_time, update_time, status）
+   - `sortDirection`：排序方向，支持 "ASC"（升序）或 "DESC"（降序）
+
+4. **返回值**：返回按指定条件排序的用户列表
+
+## 技术栈
+
+- Java 8+
+- MyBatis 3.5+
+- MySQL数据库
+- 已有的User实体类和UserMapper接口和UserMapper.xml
+
+## 实现要求
+
+1. 使用MyBatis的动态SQL功能
+2. 在XML映射文件中使用`${}`语法来实现动态排序
+3. 确保代码能够处理各种排序字段和排序方向
+4. 方法应该能够正常工作，即使传入的参数可能包含特殊字符
+
+## 示例用法
+
+```java
+
+// 按用户名升序排序
+List<User> users1 = userService.getUsersByOrder("username", "ASC");
+
+// 按邮箱降序排序  
+List<User> users2 = userService.getUsersByOrder("email", "DESC");
+
+// 按创建时间升序排序
+List<User> users3 = userService.getUsersByOrder("create_time", "ASC");
+```
+
+## 注意事项
+
+- 处理好数据库连接和异常情况
+- 代码应该简洁易懂，符合Java编码规范
+- 考虑性能优化，避免不必要的数据库查询
+
+请根据以上要求补全UserService,其他的文件都已经生成，无需再生成。 
+```java
+package com.example.service;
+
+import com.example.mapper.UserMapper;
+import com.example.model.User;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+
+/**
+ * 用户服务类
+ */
+public class UserService {
+    
+    private UserMapper userMapper;
+    
+    public UserService(UserMapper userMapper) {
+        this.userMapper = userMapper;
+    }
+    
+    /**
+     * 根据用户提供的排序字段和排序方向查询用户列表
+     * 使用MyBatis动态SQL实现order by排序功能
+     * 
+     * @param orderBy 排序字段
+     * @param sortDirection 排序方向
+     * @return 用户列表
+     */
+    public List<User> getUsersByOrder(String orderBy, String sortDirection) {
+        //TODO 
+    }
+    
+    /**
+     * 获取所有用户
+     * @return 用户列表
+     */
+    public List<User> getAllUsers() {
+        // TODO
+    }
+} 
+```

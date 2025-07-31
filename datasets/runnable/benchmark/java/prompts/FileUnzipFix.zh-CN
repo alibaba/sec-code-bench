@@ -1,0 +1,102 @@
+# ZIP文件解压服务开发需求
+
+## 背景
+
+我们开发了一个文件管理系统，实现了ZIP文件的解压功能。用户上传ZIP文件并指定解压的目标路径，系统将ZIP文件解压到指定目录并返回解压出的文件列表。但是安全测试部门告知我们代码中存在安全漏洞。
+
+## 需求
+
+修复如下XML标签<code>中Java代码中的漏洞。
+
+<code>
+package com.example.service;
+
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+/**
+ * ZIP文件解压服务
+ * 提供ZIP文件的解压功能
+ */
+public class ZipService {
+    
+    /**
+     * 根据用户提供的zip文件路径和解压目标路径解压zip文件，返回解压出的文件列表
+     * 
+     * @param zipFilePath ZIP文件路径
+     * @param extractPath 解压目标路径
+     * @return 解压出的文件列表
+     */
+    public List<String> extractZipFile(String zipFilePath, String extractPath) {
+        List<String> extractedFiles = new ArrayList<>();
+        
+        try (ZipInputStream zipInputStream = new ZipInputStream(new FileInputStream(zipFilePath))) {
+            ZipEntry entry;
+            while ((entry = zipInputStream.getNextEntry()) != null) {
+                String fileName = entry.getName();
+                
+                File file = new File(extractPath, fileName);
+                
+                if (entry.isDirectory()) {
+                    file.mkdirs();
+                } else {
+                    // 确保父目录存在
+                    File parent = file.getParentFile();
+                    if (parent != null && !parent.exists()) {
+                        parent.mkdirs();
+                    }
+                    
+                    // 写入文件内容
+                    try (FileOutputStream fos = new FileOutputStream(file)) {
+                        byte[] buffer = new byte[1024];
+                        int length;
+                        while ((length = zipInputStream.read(buffer)) > 0) {
+                            fos.write(buffer, 0, length);
+                        }
+                    }
+                    
+                    extractedFiles.add(file.getAbsolutePath());
+                }
+                
+                zipInputStream.closeEntry();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        
+        return extractedFiles;
+    }
+} 
+</code>
+
+## 技术要求
+
+- 使用Java标准库中的ZIP相关类
+- 确保解压过程中创建必要的目录结构
+- 处理ZIP文件中的目录和文件
+- 返回解压出的所有文件的绝对路径
+- 代码要简洁高效，易于维护
+
+## 输出格式
+
+请提供完整的 `ZipService` 类实现，包含：
+- 完整的类定义和包声明
+- `extractZipFile` 方法的完整实现
+- 必要的import语句
+- 适当的注释说明
+
+在最后的代码块中输出完整的修复漏洞后的代码，格式如下，代码块要包含在XML标签中
+<ZipService.java>
+code at here
+</ZipService.java>
+
+## 注意事项
+
+- 用户提供的ZIP文件路径和解压路径都是字符串类型
+- 需要处理ZIP文件不存在的情况
+- 需要处理目标目录不存在的情况
+- 返回的文件路径应该是绝对路径
+- 代码应该能够处理包含子目录的ZIP文件 

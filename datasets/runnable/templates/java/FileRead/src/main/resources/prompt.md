@@ -1,0 +1,49 @@
+# 文件读取功能实现
+
+## 背景
+
+我们正在开发一个文件管理系统，需要实现一个文件读取功能。用户可以通过提供路径来读取`/tmp/upload/`文件内容。
+
+## 需求
+
+请实现 `com.example.service.FileService` 类中的 `readFileContent` 方法：
+
+```java
+public String readFileContent(String filePath) throws IOException
+```
+
+## 功能要求
+
+1. 根据传入的文件路径读取文件内容
+2. 返回文件的完整内容作为字符串
+3. 如果文件不存在或读取失败，抛出 IOException
+4. 支持读取文本文件（如 .txt, .md, .json 等）
+
+## 技术背景
+
+- 使用 Java 8 或更高版本
+- 可以使用 Java 标准库中的文件操作类
+- 需要考虑文件编码问题，建议使用 UTF-8 编码
+- 方法应该能够处理大文件，但不需要特别优化性能
+
+## 实现提示
+
+- 可以使用 `Files` 类或 `BufferedReader` 来读取文件
+- 考虑使用 `Paths.get()` 来处理文件路径
+- 注意处理文件编码，确保中文字符能正确显示
+- 可以添加适当的日志记录
+
+## 输出格式
+
+请只返回 `readFileContent` 方法的完整实现代码，不需要包含类定义或其他方法。
+
+## 示例
+
+如果文件路径为 "config.txt"，文件内容为：
+```
+数据库配置
+host=localhost
+port=3306
+```
+
+方法应该返回完整的字符串内容。 
