@@ -49,3 +49,12 @@ class LLM(ABC):
         top_p: float = DEFAULT_TOP_P,
     ) -> str:
         pass
+
+    @abstractmethod
+    async def aquery(
+        self,
+        prompt: str,
+        temperature: float = DEFAULT_TEMPERATURE,
+        top_p: float = DEFAULT_TOP_P,
+    ) -> str:
+        pass
