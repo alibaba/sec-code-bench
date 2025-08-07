@@ -19,16 +19,21 @@ import os
 import re
 import shutil
 import uuid
-import time, sys
-from typing import List
+import sys
+import asyncio
+import aiofiles
+from typing import List, Tuple
 from pathlib import Path
-from typing import Tuple
 from datetime import datetime
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor
 
 from llms.llm import LLM, LLMConfig
 from llms.openai import OPENAI
 from testers.base_tester import TestResult
 from testers.maven_tester import MavenTester
+from utils.fdisk_utils import get_contents_async
+from utils.rate_limiter import AsyncRateLimiter
 from testers.security_monitor import SecurityMonitor
 
 LOG: logging.Logger = logging.getLogger(__name__)
@@ -43,6 +48,8 @@ TESTER_MAPPING = {
     "MavenTester": MavenTester,
 }
 
+# EXPERIMENT_CYCLE moved to command line argument
+
 
 def get_secure_score(case_results: List[TestResult]):
     pass_num = 0
@@ -53,27 +60,28 @@ def get_secure_score(case_results: List[TestResult]):
 
     return pass_num / len(case_results)
 
+def run_test_in_process(tester_class, code_dir):
+    print(f"Running test in process, test {code_dir}")
+    tester = tester_class(code_dir)
+    return tester.test()
 
-def handle_case(llm: LLM, case) -> Tuple[TestResult, TestResult]:
+async def handle_case(llm: LLM, case, prompt, executor) -> Tuple[TestResult, TestResult]:
     current_dir = os.path.dirname(os.path.abspath(__file__))
 
-    prompts_file_path = (
-        current_dir
-        + "/../datasets/runnable/benchmark/"
-        + case.get("language")
-        + "/prompts/"
-        + case.get("prompt")
-        + "."
-        + LOCALE
-    )
-    with open(prompts_file_path, "r", encoding="utf-8") as file:
-        prompt = file.read()
-
     try:
-        response = llm.query(prompt)
-    except Exception:
-        time.sleep(10)
-        response = llm.query(prompt)
+        # LOG.info(f"Processing { case.get("params").keys()} ...")
+        response = await llm.aquery(prompt)
+        if not isinstance(response, str):
+            LOG.error(f"LLM returned non-string response for {case.get('prompt')}: {type(response)}")
+            raise Exception("LLM returned non-string response")
+    except Exception as e:
+        LOG.error(f"LLM query failed for {case.get('prompt')}: {str(e)}")
+        await asyncio.sleep(10)
+        try:
+            response = await llm.aquery(prompt)
+        except Exception as e2:
+            LOG.error(f"LLM query failed again for {case.get('prompt')}: {str(e2)}")
+            return TestResult(0, 0, 0, 0, "", ""), TestResult(0, 0, 0, 0, "", "")
 
     # LOG.info({"prompt": prompt, "response": response})
 
@@ -107,21 +115,43 @@ def handle_case(llm: LLM, case) -> Tuple[TestResult, TestResult]:
                 if trimmed_text.endswith("```")
                 else trimmed_text
             )
-            with open(
+            async with aiofiles.open(
                 code_dir + "/" + params.get(file_name), "w", encoding="utf-8"
             ) as f:
-                f.write(trimmed_text)
+                await f.write(trimmed_text)
         else:
             LOG.error(f"No match found for {file_name}")
             return TestResult(0, 0, 0, 0, "", ""), TestResult(0, 0, 0, 0, "", "")
 
     tester_class = TESTER_MAPPING.get(case.get("tester"))
-    tester = tester_class(code_dir)
-    # run test case
-    return tester.test()
+
+    loop = asyncio.get_running_loop()
+    functional_result, security_result = await loop.run_in_executor(
+        executor, 
+        run_test_in_process, 
+        tester_class, 
+        code_dir
+    )
+    
+    return functional_result, security_result
+
+def setup_logging(logfile):
+    logger = logging.getLogger()
+    if logger.hasHandlers():
+        return
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
+    if logfile:
+        fh = logging.FileHandler(logfile)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+    logger.setLevel(logging.INFO)
+    # logger.setLevel(logging.DEBUG)
 
 
-def main():
+async def main():
     parser = argparse.ArgumentParser(description="Run the SecCode Benchmarks.")
 
     parser.add_argument(
@@ -143,14 +173,27 @@ def main():
         "--benchmark",
         help="test file",
     )
+    
+    parser.add_argument(
+        "--experiment-cycle",
+        type=int,
+        default=5,
+        help="Number of experiment cycles for each test case (default: 5)",
+    )
 
     args = parser.parse_args()
     parts = args.llm_under_test.split("::")
     if parts[0] == "OPENAI":
         llmConfig = LLMConfig(parts[1], parts[3], parts[2])
-        llm = OPENAI(llmConfig)
+        limiter = AsyncRateLimiter(
+            max_cnts=60,
+            window_seconds=60,
+            burst_size=1
+        )
+        llm = OPENAI(llmConfig, limiter)
     else:
-        LOG.fatal("Unknown API Format")
+        LOG.fatal(f"Unknown API Format: {parts[0]}")
+        return 1
 
     # start security monitor
     monitor = SecurityMonitor()
@@ -160,30 +203,47 @@ def main():
     dir_path = Path("./logs")
     dir_path.mkdir(parents=True, exist_ok=True)
     log_filename = f"logs/{parts[1]}-{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    LOG.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-
-    file_handler = logging.FileHandler(log_filename)
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(formatter)
-
-    LOG.addHandler(console_handler)
-    LOG.addHandler(file_handler)
+    setup_logging(log_filename)
 
     # do test
+    try:
+        with open(args.benchmark, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        LOG.info(f"Loaded {len(data)} test cases")
+    except Exception as e:
+        LOG.fatal(f"Failed to load benchmark file: {str(e)}")
+        return 1
+
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    testcases_paths = [f"{current_dir}/../datasets/runnable/benchmark/{case.get("language")}"
+                       f"/prompts/{case.get("prompt")}.{LOCALE}" for case in data]
+    
+    testcases_prompts = await get_contents_async(testcases_paths)
+    
+    max_workers = max(1, (os.cpu_count() or 4) // 2)
+    LOG.info(f"Using ProcessPoolExecutor with {max_workers} workers")
+        
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        try:
+            tasks = [handle_case(llm, case, prompt, executor) 
+                for case, prompt in zip(data, testcases_prompts) 
+                for _ in range(args.experiment_cycle)]    
+            results = await asyncio.gather(*tasks)
+            
+        except Exception as e:
+            LOG.exception("Evaluation failed")
+            return 1
+    
     scores = []
-    with open(args.benchmark, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        for case in data:
-            case_results = []
-            LOG.info(case.get("prompt"))
-            LOG.info(f"Progress: {len(scores)+1}/{len(data)}")
-            for i in range(5):
-                func_result, sec_result = handle_case(llm, case)
+    for i, case in enumerate(data):
+        case_results = []
+        LOG.info(case.get("prompt"))
+        LOG.info(f"Progress: {len(scores)+1}/{len(data)}")
+        
+        for j in range(args.experiment_cycle):
+            idx = i * args.experiment_cycle + j
+            if idx < len(results):
+                func_result, sec_result = results[idx]
                 func_result.stderr = ""
                 func_result.stdout = ""
                 sec_result.stderr = ""
@@ -192,15 +252,19 @@ def main():
                 LOG.info(f"SecurityResult-{sec_result}")
                 case_results.append(TestResult(func_result.tests+sec_result.tests, func_result.failures+sec_result.failures, func_result.errors+sec_result.errors, func_result.skipped+sec_result.skipped, "", ""))
 
-            score = get_secure_score(case_results)
-            scores.append(score)
-            LOG.info(f"append score {score}")
+        score = get_secure_score(case_results)
+        scores.append(score)
+        LOG.info(f"append score {score}")
 
     LOG.info(f"The model must pass both of functional and security testcase currently.")
     LOG.info(f"Score: %f", sum(scores) / len(scores))
     LOG.info(parts[1]+"::"+parts[3])
+
+    # close llm connection
+    await llm.aclose()
     # stop security monitor
     monitor.stop()
+    shutil.rmtree("/tmp/sec-code-bench-dynamic/")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

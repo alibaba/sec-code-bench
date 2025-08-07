@@ -118,21 +118,15 @@ class SecurityMonitor:
                 total_count=total_count
             )
 
-    def _run_uvicorn(self):
-        import uvicorn
-        uvicorn.run(
-            self._app,
-            host=self._host,
-            port=self._port,
-            log_level="info",
-            lifespan="off"
-        )
-
     def start(self):
         if self._process and self._process.is_alive():
             LOG.info("Monitor already running.")
             return
-        self._process = multiprocessing.Process(target=self._run_uvicorn, daemon=True)
+        self._process = multiprocessing.Process(
+                target=_start_server,
+                args=(self._host, self._port),
+                daemon=True
+            )
         self._process.start()
         LOG.info(f"SecurityMonitor started on http://{self._host}:{self._port}")
 
@@ -144,6 +138,16 @@ class SecurityMonitor:
             self._process = None
             LOG.info("SecurityMonitor stopped.")
 
+def _start_server(host, port):
+    import uvicorn
+    monitor = SecurityMonitor(host, port)
+    uvicorn.run(
+        monitor._app,
+        host=host,
+        port=port,
+        log_level="info",
+        lifespan="off"
+    )
 # if __name__ == "__main__":
 #     import time
 #     monitor = SecurityMonitor()

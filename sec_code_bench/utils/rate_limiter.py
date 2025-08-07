@@ -15,7 +15,61 @@
 import collections
 import threading
 import time
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict, Any
+
+from loguru import logger
+
+import asyncio
+
+import logging
+LOG: logging.Logger = logging.getLogger(__name__)
+
+class AsyncRateLimiter:
+    def __init__(
+        self,
+        max_cnts,
+        window_seconds=60,
+        burst_size=None,
+    ):
+        if window_seconds <= 0:
+            raise ValueError("Window seconds must be positive.")
+        if max_cnts <= 0:
+            raise ValueError("max_cnts must be positive.")
+        self.window_seconds = window_seconds
+        self.max_cnts = max_cnts
+        self.tokens_per_second = max_cnts / window_seconds
+        self.burst_size = burst_size if burst_size is not None else max_cnts
+        self.tokens = self.burst_size
+        self.last_refill_time = time.time()
+        self._lock = asyncio.Lock()
+
+    def _refill_tokens(self):
+        now = time.time()
+        time_passed = now - self.last_refill_time
+        tokens_to_add = time_passed * self.tokens_per_second
+        self.tokens = min(self.burst_size, self.tokens + tokens_to_add)
+        self.last_refill_time = now
+
+    async def acquire(self):
+        while True:
+            async with self._lock:
+                self._refill_tokens()
+                if self.tokens >= 1:
+                    self.tokens -= 1
+                    return
+                tokens_needed = 1 - self.tokens
+                wait_time = tokens_needed / self.tokens_per_second
+            # wait outside of lock
+            LOG.debug(f"Waiting for {wait_time:.4f} seconds")
+            await asyncio.sleep(wait_time)
+
+    async def __aenter__(self):
+        await self.acquire()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
 
 
 class RateLimiter(object):
