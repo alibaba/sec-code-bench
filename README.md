@@ -160,7 +160,7 @@ For more configuration information, please refer to `config.ini` and `.env.examp
 
 Supports dynamic evaluation to verify the secure programming capabilities of Large Language Models (LLMs) in the `instruct` scenario. To start it:
 ```Python3
-uv run -m sec_code_bench.eval_dynamic \
+uv run sec_code_bench/eval_dynamic \
     --benchlanguage java \
     --benchmark ./datasets/runnable/benchmark/java/java.json \
     --llm-under-test "OPENAI::<ModelName>::<APIKey>::<URL>"
