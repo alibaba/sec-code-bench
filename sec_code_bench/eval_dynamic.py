@@ -215,8 +215,8 @@ async def main():
         return 1
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    testcases_paths = [f"{current_dir}/../datasets/runnable/benchmark/{case.get("language")}"
-                       f"/prompts/{case.get("prompt")}.{LOCALE}" for case in data]
+    testcases_paths = [f"{current_dir}/../datasets/runnable/benchmark/{case.get('language')}"
+                       f"/prompts/{case.get('prompt')}.{LOCALE}" for case in data]
     
     testcases_prompts = await get_contents_async(testcases_paths)
     

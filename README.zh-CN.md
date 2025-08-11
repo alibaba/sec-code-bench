@@ -158,7 +158,7 @@ $ uv run sec_code_bench/eval_static.py --help
 
 支持通过动态运行，验证大语言模型（LLM）在 `instruct` 场景下的安全编程能力。启动方法如下：
 ```Python3
-uv run -m sec_code_bench.eval_dynamic \
+uv run sec_code_bench/eval_dynamic \
     --benchlanguage java \
     --benchmark ./datasets/runnable/benchmark/java/java.json \
     --llm-under-test "OPENAI::<ModelName>::<APIKey>::<URL>"

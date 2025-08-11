@@ -40,6 +40,7 @@ class OPENAI(LLM):
         self.aclient = openai.AsyncOpenAI(
             api_key=self.api_key,
             base_url=self.url,
+            max_retries=0,
         )
         self.rate_limiter = rate_limiter
     @override
