@@ -12,111 +12,116 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import collections
-import threading
-import time
-from typing import Callable, Optional, Dict, Any
-
-from loguru import logger
+from __future__ import annotations
 
 import asyncio
+import time
+from typing import Any
 
-import logging
-LOG: logging.Logger = logging.getLogger(__name__)
+from sec_code_bench.utils.logger_utils import Logger
 
-class AsyncRateLimiter:
+LOG = Logger.get_logger(__name__)
+
+
+class RateLimiter:
+    """
+    A token bucket rate limiter implementation for asyncio.
+
+    This rate limiter uses the token bucket algorithm to control the rate
+    of operations. Tokens are added to the bucket at a constant rate, and
+    each operation consumes one token. When there are no tokens available,
+    operations will wait until tokens are replenished.
+
+    Attributes:
+        window_seconds: The time window in seconds for rate limiting.
+        max_cnts: Maximum number of operations allowed in the time window.
+        tokens_per_second: Rate at which tokens are added to the bucket.
+        burst_size: Maximum number of tokens that can be accumulated.
+        tokens: Current number of tokens in the bucket.
+        last_refill_time: Timestamp of the last token refill operation.
+        _lock: Async lock to ensure thread safety.
+    """
+
     def __init__(
         self,
-        max_cnts,
-        window_seconds=60,
-        burst_size=None,
-    ):
+        max_cnts: int = 60,
+        window_seconds: float = 60,
+        burst_size: int | None = None,
+    ) -> None:
+        """
+        Initialize the rate limiter.
+
+        Args:
+            max_cnts: Maximum number of operations allowed in the time window.
+            window_seconds: The time window in seconds for rate limiting.
+            burst_size: Maximum number of operations that can be performed in a burst.
+                       If None, defaults to max_cnts.
+
+        Raises:
+            ValueError: If window_seconds or max_cnts is not positive.
+        """
         if window_seconds <= 0:
             raise ValueError("Window seconds must be positive.")
         if max_cnts <= 0:
             raise ValueError("max_cnts must be positive.")
-        self.window_seconds = window_seconds
-        self.max_cnts = max_cnts
-        self.tokens_per_second = max_cnts / window_seconds
-        self.burst_size = burst_size if burst_size is not None else max_cnts
-        self.tokens = self.burst_size
-        self.last_refill_time = time.time()
-        self._lock = asyncio.Lock()
+        self.window_seconds: float = window_seconds
+        self.max_cnts: int = max_cnts
+        self.tokens_per_second: float = max_cnts / window_seconds
+        self.burst_size: int = burst_size if burst_size is not None else max_cnts
+        self.tokens: float = float(self.burst_size)
+        self.last_refill_time: float = time.time()
+        self._lock: asyncio.Lock = asyncio.Lock()
 
-    def _refill_tokens(self):
-        now = time.time()
-        time_passed = now - self.last_refill_time
-        tokens_to_add = time_passed * self.tokens_per_second
-        self.tokens = min(self.burst_size, self.tokens + tokens_to_add)
+    def _refill_tokens(self) -> None:
+        """
+        Refill tokens in the bucket based on elapsed time.
+
+        This method calculates how many tokens should be added based on the time
+        elapsed since the last refill and adds them to the bucket, up to the burst size.
+        """
+        now: float = time.time()
+        time_passed: float = now - self.last_refill_time
+        tokens_to_add: float = time_passed * self.tokens_per_second
+        self.tokens = min(float(self.burst_size), self.tokens + tokens_to_add)
         self.last_refill_time = now
 
-    async def acquire(self):
+    async def acquire(self) -> None:
+        """
+        Acquire a token from the bucket, waiting if necessary.
+
+        This method will wait until a token is available before returning.
+        It ensures that operations are rate-limited according to the
+        configured parameters.
+        """
         while True:
             async with self._lock:
                 self._refill_tokens()
                 if self.tokens >= 1:
                     self.tokens -= 1
                     return
-                tokens_needed = 1 - self.tokens
-                wait_time = tokens_needed / self.tokens_per_second
+                tokens_needed: float = 1 - self.tokens
+                wait_time: float = tokens_needed / self.tokens_per_second
             # wait outside of lock
-            LOG.debug(f"Waiting for {wait_time:.4f} seconds")
+            # LOG.debug(f"Waiting for {wait_time:.4f} seconds")
             await asyncio.sleep(wait_time)
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> RateLimiter:
+        """
+        Async context manager entry.
+
+        Returns:
+            RateLimiter: The rate limiter instance.
+        """
         await self.acquire()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """
+        Async context manager exit.
+
+        Args:
+            exc_type: Exception type if an exception was raised in the context.
+            exc_val: Exception value if an exception was raised in the context.
+            exc_tb: Exception traceback if an exception was raised in the context.
+        """
         pass
-
-
-
-class RateLimiter(object):
-
-    def __init__(
-        self,
-        max_cnts,
-        window_seconds=60,
-        callback: Optional[Callable[[float], None]] = None,
-    ):
-        if window_seconds <= 0:
-            raise ValueError("The windows for rate limiting should be > 0")
-
-        if max_cnts <= 0:
-            raise ValueError("The number of requests should be > 0")
-
-        self.requests = collections.deque()
-
-        self.window_seconds = window_seconds
-        self.max_cnts = max_cnts
-        self.callback = callback
-        self._lock = threading.Lock()
-
-    def _wait_for_capacity(self):
-        end_ts = time.time() + self.window_seconds - self._timespan
-        if self.callback:
-            t = threading.Thread(target=self.callback, args=(end_ts,))
-            t.daemon = True
-            t.start()
-        sleeptime = end_ts - time.time()
-        # sleep until the next window
-        if sleeptime > 0:
-            time.sleep(sleeptime)
-
-    def __enter__(self):
-        with self._lock:
-            if len(self.requests) >= self.max_cnts:
-                self._wait_for_capacity()
-            return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        with self._lock:
-            self.requests.append(time.time())
-
-            while self._timespan >= self.window_seconds:
-                self.requests.popleft()
-
-    @property
-    def _timespan(self):
-        return self.requests[-1] - self.requests[0]

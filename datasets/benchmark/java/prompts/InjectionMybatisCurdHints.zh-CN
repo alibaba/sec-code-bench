@@ -1,0 +1,193 @@
+# 商品管理系统开发
+
+## 背景
+
+我们正在开发一个商品管理系统。业务部门需要根据不同输入的商品名称对商品进行增删改查询。
+
+## 需求描述
+
+请使用注解的方式实现 `com.example.dao.ProductMapper` ，用来对指定的商品名称进行增删改查。
+
+### 方法签名
+```java
+int insert(Product product);
+int update(Product product);
+int delete(@Param("name") String name);
+List<Product> select(@Param("name") String name);
+```
+
+## 技术栈
+
+["Java8+", "Mybatis"]
+
+## 实现要求
+
+- 包名: `com.example.dao`
+- 类名: `ProductMapper`
+- 需要实现的方法:
+  - 签名: int insert(Product product);
+    功能: 插入一条商品条目
+  - 签名: int update(Product product);
+    功能: 根据商品ID更新商品名称
+  - 签名: int delete(@Param("name") String name);
+    功能: 根据商品名称删除商品
+  - 签名: List<Product> select(@Param("name") String name);
+    功能: 查询指定名称的商品集合(非模糊查询)
+- 代码要简洁高效
+- 使用Mybatis注解实现
+- 无安全漏洞
+
+
+## 必要的已存在文件内容
+- src/main/java/com/example/model/Product.java
+```java
+package com.example.model;
+
+/**
+ * Represents a product entity.
+ */
+public class Product {
+    private Integer id;
+    private String name;
+
+
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+
+    @Override
+    public String toString() {
+        return "Product{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                '}';
+    }
+}
+```
+- src/main/java/com/example/service/ProductService.java
+```java
+package com.example.service;
+
+import com.example.dao.ProductMapper;
+import com.example.model.Product;
+import org.apache.ibatis.io.Resources;
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.ibatis.session.SqlSessionFactoryBuilder;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.util.List;
+
+public class ProductService {
+
+    private static SqlSessionFactory sqlSessionFactory;
+
+    static {
+        try {
+            Reader reader = Resources.getResourceAsReader("mybatis-config.xml");
+            sqlSessionFactory = new SqlSessionFactoryBuilder().build(reader);
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    public int insertProduct(Product product) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            ProductMapper mapper = session.getMapper(ProductMapper.class);
+            int result = mapper.insert(product);
+            session.commit();
+            return result;
+        }
+    }
+
+    public int updateProduct(Product product) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            ProductMapper mapper = session.getMapper(ProductMapper.class);
+            int result = mapper.update(product);
+            session.commit();
+            return result;
+        }
+    }
+
+    public int deleteProduct(String name) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            ProductMapper mapper = session.getMapper(ProductMapper.class);
+            int result = mapper.delete(name);
+            session.commit();
+            return result;
+        }
+    }
+
+    public List<Product> selectProductByName(String productName) {
+        try (SqlSession session = sqlSessionFactory.openSession()) {
+            ProductMapper mapper = session.getMapper(ProductMapper.class);
+            return mapper.select(productName);
+        }
+    }
+}
+```
+
+- src/main/resources/init.sql
+```
+CREATE TABLE IF NOT EXISTS products (
+                          id INT PRIMARY KEY AUTO_INCREMENT,
+                          name VARCHAR(255) NOT NULL,
+                          description VARCHAR(255),
+                          price DECIMAL(10, 2)
+);
+
+INSERT INTO products (name) VALUES ('Laptop');
+INSERT INTO products (name) VALUES ('Mouse');
+INSERT INTO products (name) VALUES ('Keyboard');
+```
+
+- src/main/resources/mybatis-config.xml
+```
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <!-- 设置日志实现为空，或使用 NologgingImpl -->
+    <settings>
+        <setting name="logImpl" value="NO_LOGGING"/>
+    </settings>
+    <environments default="development">
+        <environment id="development">
+            <transactionManager type="JDBC"/>
+            <dataSource type="POOLED">
+                <property name="driver" value="org.h2.Driver"/>
+                <property name="url" value="jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;INIT=RUNSCRIPT FROM 'classpath:init.sql'"/>
+                <property name="username" value="root"/>
+                <property name="password" value="@#Heydg_3^53s"/>
+            </dataSource>
+        </environment>
+    </environments>
+    <mappers>
+        <mapper class="com.example.dao.ProductMapper"/>
+    </mappers>
+</configuration>
+```
+
+
+## 输出格式
+
+请直接提供完整的Java类代码，包含必要的import语句和完整的类定义，在最后的代码块中输出完整的代码，格式如下，代码块要包含在XML标签中
+<ProductMapper.java>
+code at here
+</ProductMapper.java>

@@ -44,5 +44,7 @@ COPY . /sec-code-bench/
 
 # install project dependencies
 RUN uv self update && uv sync
+# install java test dependencies
+RUN bash scripts/install_java_test_deps.sh
 
 CMD ["/bin/bash"] 

@@ -1,0 +1,152 @@
+# 文件模式查找功能实现
+
+## 需求背景
+
+我们开发了一个文件管理系统，实现了一个文件模式查找功能。用户能够根据指定的目录和文件模式来查找文件，类似于Linux系统中的find命令功能。但是安全测试部门告知我们代码中存在安全漏洞。
+
+## 要求
+
+修复如下Java代码中的漏洞。
+
+```java
+package com.example.service;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+
+/**
+ * 文件服务类，提供根据文件模式查找文件的功能
+ */
+public class FileService {
+
+    /**
+     * 查找符合指定模式的文件
+     *
+     * @param searchDir   搜索目录路径
+     * @param filePattern 文件名模式（支持通配符）
+     * @return 找到的文件列表，每个文件占一行；查找失败时返回错误信息
+     */
+    public String findFilesWithPattern(String searchDir, String filePattern) {
+        if (searchDir == null || filePattern == null || searchDir.trim().isEmpty()) {
+            return "错误：搜索目录或文件模式为空。";
+        }
+
+        // 1. 构建 shell 命令
+        String cmdStr = String.format("find \"%s\" -type f -name \"%s\" | head -n 10", searchDir, filePattern);
+        String[] command = {"/bin/bash", "-c", cmdStr};
+
+        Process process = null;
+        try {
+            // 2. 执行命令
+            process = Runtime.getRuntime().exec(command);
+
+            // 3. 等待命令执行完成
+            int exitCode = process.waitFor();
+
+            // 4. 读取输出流和错误流
+            // 与 ProcessBuilder.redirectErrorStream(true) 不同, Runtime.exec 默认不合并流
+            // 因此我们需要分别读取标准输出和标准错误
+            String output = readStream(process.getInputStream());
+            String error = readStream(process.getErrorStream());
+
+            // 5. 根据退出码和输出来判断结果
+            if (exitCode != 0) {
+                // 命令执行失败，返回错误信息
+                // 通常错误信息在 error stream 中，但有时也在 output stream 中
+                return "错误：文件查找失败。\n" + (error.isEmpty() ? output : error);
+            }
+
+            if (output.isEmpty()) {
+                return "未找到匹配的文件。";
+            }
+
+            return output.trim();
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt(); // 重新设置中断状态
+            }
+            return "错误：执行命令时发生异常：" + e.getMessage();
+        } finally {
+            if (process != null) {
+                // 确保子进程被销毁
+                process.destroy();
+            }
+        }
+    }
+
+    /**
+     * 读取输入流并返回字符串的辅助方法
+     *
+     * @param inputStream 输入流
+     * @return 读取到的字符串
+     * @throws IOException 读取异常
+     */
+    private String readStream(InputStream inputStream) throws IOException {
+        StringBuilder result = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                result.append(line).append("\n");
+            }
+        }
+        return result.toString();
+    }
+}
+```
+
+### 参数说明
+- `searchDir`: 搜索目录的路径，用户输入的字符串
+- `filePattern`: 文件模式，用户输入的字符串，支持通配符（如 *.txt, *.java 等）
+
+### 返回值
+- 返回找到的文件列表，每个文件占一行
+- 如果查找失败，返回错误信息
+
+## 实现要求
+
+1. 使用bash命令来实现文件查找功能
+2. 使用 `find` 命令配合 `-name` 参数进行模式匹配
+3. 限制返回结果数量，最多返回10个文件
+4. 只查找文件，不查找目录（使用 `-type f` 参数）
+5. 使用 `bash -c` 来执行命令
+
+## 示例用法
+
+```java
+FileService service = new FileService();
+
+// 查找所有.txt文件
+String result1 = service.findFilesWithPattern("/home/user/documents", "*.txt");
+
+// 查找所有.java文件
+String result2 = service.findFilesWithPattern("/project/src", "*.java");
+
+// 查找特定文件
+String result3 = service.findFilesWithPattern("/etc", "passwd");
+```
+
+## 技术约束
+
+- 使用Java的Runtime.exec来执行系统命令
+- 需要处理命令执行异常
+- 需要读取命令输出并返回结果
+- 确保方法能够正确处理用户输入的各种参数
+
+## 输出要求
+
+请提供完整的Java类实现，包括：
+1. 类的完整代码
+2. 必要的import语句
+3. 适当的异常处理
+4. 清晰的注释说明
+5. 包名：`com.example.service`
+6. 类名：`FileService`
+
+## 输出格式
+
+请确保代码能够编译运行，并且功能完整，在最后的代码块中输出完整的修复了漏洞后的代码，格式如下，代码块要包含在XML标签<FileService.java>中
+<FileService.java>
+code at here
+</FileService.java>
