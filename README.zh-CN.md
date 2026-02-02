@@ -34,9 +34,9 @@ SecCodeBench是一个由阿里巴巴集团与清华大学网络科学与网络�
 
 为应对上述挑战，我们推出了 `SecCodeBench`，一个**专为现代智能编码工具**设计的基准测试套件。它通过以下三个核心设计，确保了评测的深度与广度：
 
-*   **在数据构建上**，我们确保了测试用例的真实性与多样性。所有测试用例均基于**脱敏后的阿里巴巴内部真实历史漏洞**，并以完整的可运行项目形式存在，而非简单的代码片段。每个测试用例由 **（功能需求、编程语言、三方库、函数接口）** 四个属性唯一确定。目前已包含37个测试用例，覆盖16种CWE类型，并衍生出四种测试模式：**代码生成（原生/提示增强）与代码修复（原生/提示增强）**。测试用例由资深安全专家团队构建，并经过严格的三人评审。此外，所有用例都在十余个模型上经过了多轮实证测试与精细调优，以确保其公正性与挑战性。
+*   **在数据构建上**，我们确保了测试用例的真实性与多样性。所有测试用例均基于**脱敏后的阿里巴巴内部真实历史漏洞**，并以完整的可运行项目形式存在，而非简单的代码片段。每个测试用例由 **（功能需求、编程语言、三方库、函数接口）** 四个属性唯一确定。目前已包53个测试用例，覆盖16种CWE类型，并衍生出四种测试模式：**代码生成（原生/提示增强）与代码修复（原生/提示增强）**。测试用例由资深安全专家团队构建，并经过严格的三人评审。此外，所有用例都在十余个模型上经过了多轮实证测试与精细调优，以确保其公正性与挑战性。
 
-*   **在评估方法上**，我们建立了一套**多阶段、高精度的评估流程**。我们遵循 **“功能优先”（Functionality-First）原则，即代码必须先通过所有功能测试**，才有资格进入安全评估阶段。安全性评估采用分层策略：**优先采用基于PoC的动态执行验证**，确保结果的客观可靠。对于无法通过动态执行覆盖的复杂场景，我们引入了注入安全领域知识的LLM-as-a-Judge。最终得分是基于 pass@1 的加权总和，其权重综合考量了测试场景（原生与提示增强的权重比为4:1）、漏洞常见度及危害等级（高、中、低权重分别为4、2、1），从而更真实地反映模型的综合安全能力。
+*   **在评估方法上**，我们建立了一套**多阶段、高精度的评估流程**。我们遵循 **“功能优先”（Functionality-First）原则，即代码必须先通过所有功能测试**，才有资格进入安全评估阶段。安全性评估采用分层策略：**优先采用基于PoC的动态执行验证**，确保结果的客观可靠。对于无法通过动态执行覆盖的复杂场景，我们引入了注入安全领域知识的LLM-as-a-Judge。最终得分是基于 pass@1 的加权总和，其权重综合考量了测试场景（原生与提示增强的权重比为4:1）、漏洞常见度及危害等级（严重、高、中权重分别为4、2、1），从而更真实地反映模型的综合安全能力。
 
 *   **在工程实现上**，我们提供了一个高度可扩展的测试框架。它不仅**支持对模型API进行标准的多轮对话测试**，更实现了**对主流智能编码工具（如IDE插件、CLI工具）的端到端自动化评测**。此外，框架还会生成 **[详尽的可视化报告与日志](https://alibaba.github.io/sec-code-bench)**，便于研究人员进行深度分析和模型诊断，从而推动大模型安全编码能力的持续进步。
 
@@ -112,6 +112,7 @@ $ uv run -m sec_code_bench.eval \
 usage: eval.py [-h] --benchmark BENCHMARK [--config CONFIG] [--log_level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--log-dir LOG_DIR] --language_list LANGUAGE_LIST [LANGUAGE_LIST ...]
                --eval_llm EVAL_LLM
                --judge_llm_list JUDGE_LLM_LIST [JUDGE_LLM_LIST ...] [--experiment_cycle EXPERIMENT_CYCLE]
+               [--parameters PARAMETERS]
 
 SecCodeBench - A Security Benchmark for AI-Generated and -Repaired Code
 
@@ -132,6 +133,9 @@ options:
                         times. Must be odd number for majority voting.
   --experiment_cycle EXPERIMENT_CYCLE
                         Number of experiment cycles for each test case (default: 10)
+  --parameters PARAMETERS_IN_JSON
+                        Optional JSON string of parameters to pass to LLM API calls.
+                        e.g., '{"enable_thinking": true}'. These parameters will be merged into the API request body.
 ```
 
 更多配置信息请参见 `config.ini`。

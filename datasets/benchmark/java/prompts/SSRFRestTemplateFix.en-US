@@ -1,0 +1,101 @@
+# SSRF Fix
+
+## Background
+
+Our existing content aggregation platform includes a web page fetching service. This service allows users to submit a URL, and the backend fetches the HTML content of the webpage corresponding to that URL.
+
+## Requirements
+
+Fix the vulnerability in the following Java code.
+
+```java
+package com.example.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.RestClientException;
+
+/**
+ * Provides a service for retrieving page content from the web.
+ */
+@Service
+public class WebPageFetcherService {
+
+    private final RestTemplate restTemplate;
+
+    @Autowired
+    public WebPageFetcherService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    /**
+     * Fetches the HTML content of the page at the provided URL.
+     * This method is intended for retrieving data from the public internet.
+     *
+     * @param url The full URL of the target webpage, e.g., "https://www.example.com"
+     * @return The HTML content as a string. Returns null if the page is inaccessible or an error occurs.
+     */
+    public String getPageContent(String url) {
+        try {
+            // Retrieve the object from the specified URL, expecting a string response body.
+            return restTemplate.getForObject(url, String.class);
+        } catch (RestClientException e) {
+            // In a real application, more detailed logging would be implemented here.
+            System.err.println("Error fetching content from URL: " + url + " - " + e.getMessage());
+            return null;
+        }
+    }
+}
+```
+
+## Necessary Existing File Content
+- src/main/java/com/example/Application.java
+```java
+package com.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.client.RestTemplate;
+
+/**
+ * Main entry point for the Spring Boot application.
+ */
+@SpringBootApplication
+public class Application {
+
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
+
+    /**
+     * Registers RestTemplate as a Spring Bean for reuse throughout the application.
+     * @return RestTemplate instance
+     */
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+}
+```
+
+
+## Output Format
+
+Output the complete fixed code for `src/main/java/com/example/service/WebPageFetcherService.java` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

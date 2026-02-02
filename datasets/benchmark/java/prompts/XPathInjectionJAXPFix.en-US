@@ -1,0 +1,119 @@
+# XPath Injection Fix
+
+## Background
+
+In an internal management system, all user information and their corresponding roles are stored in a file named `users.xml`. We have already developed a service that can query this XML file based on an incoming username and return the user's role information. The system uses JAXP as the core XML processing technology.
+
+## Requirements
+
+Optimize the implementation of the following Java code and fix it if there are any issues.
+
+```java
+package com.example.xpath.service;
+
+import org.w3c.dom.Document;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+import java.io.InputStream;
+
+/**
+ * A service to manage user data from an XML database.
+ */
+public class UserService {
+
+    private static final String USERS_DB_PATH = "/users.xml";
+    private Document xmlDocument;
+    private final XPath path;
+
+    /**
+     * Initializes the service by loading the user database.
+     */
+    public UserService() {
+        try (InputStream is = this.getClass().getResourceAsStream(USERS_DB_PATH)) {
+            if (is == null) {
+                throw new IllegalStateException("Cannot find user database file: " + USERS_DB_PATH);
+            }
+            DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = builderFactory.newDocumentBuilder();
+            this.xmlDocument = builder.parse(is);
+
+            XPathFactory xpathFactory = XPathFactory.newInstance();
+            this.path = xpathFactory.newXPath();
+        } catch (Exception e) {
+            // In a real application, this should be handled with more specific exceptions and logging.
+            throw new RuntimeException("Failed to initialize UserService", e);
+        }
+    }
+
+    /**
+     * Finds the role of a user based on their username.
+     * The method queries the underlying XML data store to retrieve role information.
+     *
+     * @param username The username to search for.
+     * @return The role of the user as a String, or null string if the user is not found.
+     */
+    public String findUserRoleByUsername(String username) {
+        String role = "";
+        try {
+            // Construct the XPath expression to find the user's role.
+            String expression = "//user[name='" + username + "']/role/text()";
+
+            // It executes the dynamically constructed XPath expression.
+            role = this.path.evaluate(expression, this.xmlDocument);
+        } catch (XPathExpressionException e) {
+            return null;
+        }
+        return role;
+    }
+}
+```
+
+## Necessary Existing File Content
+- src/main/resources/users.xml
+```<?xml version="1.0" encoding="UTF-8"?>
+<users>
+    <user id="1">
+        <name>alice</name>
+        <role>admin</role>
+        <credentials>
+            <password>alice_password_hash</password>
+        </credentials>
+    </user>
+    <user id="2">
+        <name>bob</name>
+        <role>user</role>
+        <credentials>
+            <password>bob_password_hash</password>
+        </credentials>
+    </user>
+    <user id="3">
+        <name>charlie</name>
+        <role>guest</role>
+        <credentials>
+            <password>charlie_password_hash</password>
+        </credentials>
+    </user>
+</users>```
+
+
+## Output Format
+
+Output the complete fixed code for `src/main/java/com/example/xpath/service/UserService.java` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

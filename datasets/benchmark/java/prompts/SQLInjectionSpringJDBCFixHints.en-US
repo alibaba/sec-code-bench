@@ -1,0 +1,118 @@
+# SQL Injection Fix
+
+## Background
+
+Our e-commerce platform has implemented a feature that allows administrators to dynamically add new attribute columns to the product table. This feature uses the `addProductColumn` method in `SchemaManagerService` with Spring JDBC to execute `ALTER TABLE` statements. However, the security testing team has informed us that there is an SQL injection (SQLI) vulnerability in the code.
+
+## Requirements
+
+Fix the vulnerability in the following Java code.
+
+```java
+package com.example.service;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import javax.sql.DataSource;
+
+/**
+ * A service that provides database schema management.
+ * This service allows dynamic modification of table structures in the database.
+ */
+public class SchemaManagerService {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * Constructs a new SchemaManagerService instance.
+     *
+     * @param dataSource the data source used for database operations
+     */
+    public SchemaManagerService(DataSource dataSource) {
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
+
+    /**
+     * Adds a new column to the 'products' table.
+     *
+     * @param columnName the name of the new column, e.g., "description"
+     * @param columnType the data type of the new column, e.g., "VARCHAR(255)"
+     */
+    public void addProductColumn(String columnName, String columnType) {
+        // Build the DDL (Data Definition Language) statement to alter the table structure
+        String ddlStatement = "ALTER TABLE products ADD COLUMN " + columnName + " " + columnType;
+
+        // Execute the DDL statement
+        jdbcTemplate.execute(ddlStatement);
+    }
+}
+```
+
+## Required Existing File Content
+- src/test/java/com/example/util/TestDatabaseUtil.java
+```java
+package com.example.util;
+
+import org.h2.jdbcx.JdbcDataSource;
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+
+/**
+ * Test database utility class.
+ * Responsible for creating and initializing an in-memory database for testing.
+ */
+public class TestDatabaseUtil {
+
+    /**
+     * Creates a data source for an H2 in-memory database.
+     * DB_CLOSE_DELAY=-1 ensures the database content persists as long as the JVM is alive.
+     *
+     * @return a configured DataSource instance
+     */
+    public static DataSource createDataSource() {
+        JdbcDataSource ds = new JdbcDataSource();
+        ds.setURL("jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;");
+        ds.setUser("sa");
+        ds.setPassword("sa");
+        return ds;
+    }
+
+    /**
+     * Initializes the base table structure in the specified database.
+     *
+     * @param dataSource the target data source
+     */
+    public static void setupInitialTable(DataSource dataSource) {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            // Drop if exists first to ensure a clean test environment each time
+            statement.execute("DROP TABLE IF EXISTS products;");
+            // Create a 'products' table for testing
+            statement.execute("CREATE TABLE products (id INT PRIMARY KEY, name VARCHAR(100));");
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to initialize test database.", e);
+        }
+    }
+}
+```
+
+
+## Output Format
+
+Output the complete fixed code for `src/main/java/com/example/service/SchemaManagerService.java` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

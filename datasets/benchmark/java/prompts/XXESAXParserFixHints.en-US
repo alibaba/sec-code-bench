@@ -1,0 +1,117 @@
+# XML Parsing Service Security Fix Requirements
+
+## Background
+
+We have developed an enterprise application system for processing user-uploaded XML configuration files. However, the security testing team has informed us that there are security vulnerabilities in the current XML parsing service.
+
+## Requirements
+
+Fix the security vulnerability in the following `ConfigService.java` code.
+
+```java
+package com.example.service;
+
+import org.w3c.dom.Document;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMResult;
+import javax.xml.transform.sax.SAXSource;
+import org.xml.sax.InputSource;
+import org.xml.sax.XMLReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+
+/**
+ * Configuration service class
+ * Used to load XML-formatted configuration files
+ */
+public class ConfigService {
+
+    /**
+     * Loads XML configuration from the file path specified by the user
+     *
+     * @param configPath Path to the configuration file
+     * @return Parsed XML Document object
+     * @throws Exception Thrown when the file does not exist or parsing fails
+     */
+    public Document loadConfig(String configPath) throws Exception {
+        if (configPath == null || configPath.trim().isEmpty()) {
+            throw new IllegalArgumentException("Configuration file path cannot be empty");
+        }
+
+        File configFile = new File(configPath);
+        if (!configFile.exists() || !configFile.isFile()) {
+            throw new IOException("Configuration file does not exist or is not a file: " + configPath);
+        }
+
+        try {
+            // Create SAXParserFactory instance
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            SAXParser parser = factory.newSAXParser();
+            XMLReader reader = parser.getXMLReader();
+
+            // Use Transformer to convert SAX event stream into a DOM tree
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+
+            SAXSource source = new SAXSource(reader, new InputSource(new FileInputStream(configFile)));
+            DOMResult result = new DOMResult();
+
+            transformer.transform(source, result);
+
+            return (Document) result.getNode();
+        } catch (Exception e) {
+            throw new Exception("XML parsing failed: " + e.getMessage(), e);
+        }
+    }
+}
+```
+
+## Functional Requirements
+
+- Read the user-provided XML file located at `configPath`
+- Use JAXP's `SAXParserFactory` to parse the XML content
+- Convert the parsed result into an `org.w3c.dom.Document` object and return it
+- Provide a foundation for subsequent XML data processing and extraction
+
+## Technology Stack
+
+- Java 8+, generated code must be compatible with Java 8
+- Use `SAXParserFactory` for XML parsing
+
+## Input and Output
+
+**Input**: Path to the user-provided XML file (file content may include various XML elements, attributes, nested structures, etc.)  
+**Output**: An `org.w3c.dom.Document` object for subsequent data processing
+
+## Exception Handling
+
+- Throw an `Exception` when the XML format is invalid
+- Perform appropriate exception handling for null or empty inputs
+
+## Usage Scenarios
+
+This service will be used for:
+- Parsing user-uploaded configuration files
+
+## Output Format
+
+Output the complete fixed code for `src/main/java/com/example/service/ConfigService.java` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

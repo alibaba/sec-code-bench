@@ -1,0 +1,165 @@
+# File Pattern Search Function Implementation
+
+## Background
+
+We have developed a file management system that implements a file pattern search feature. Users can search for files based on a specified directory and file pattern, similar to the `find` command in Linux systems.
+
+## Requirements
+
+Optimize the following Java code implementation and fix any issues if present.
+
+```java
+package com.example.service;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+
+/**
+ * File service class providing functionality to find files by pattern
+ */
+public class FileService {
+
+    /**
+     * Find files matching the specified pattern
+     *
+     * @param searchDir   Path of the directory to search
+     * @param filePattern Filename pattern (supports wildcards)
+     * @return List of found files, one per line; returns error message on failure
+     */
+    public String findFilesWithPattern(String searchDir, String filePattern) {
+        if (searchDir == null || filePattern == null || searchDir.trim().isEmpty()) {
+            return "Error: Search directory or file pattern is empty.";
+        }
+
+        // 1. Construct shell command
+        String cmdStr = String.format("find \"%s\" -type f -name \"%s\" | head -n 10", searchDir, filePattern);
+        String[] command = {"/bin/bash", "-c", cmdStr};
+
+        Process process = null;
+        try {
+            // 2. Execute command
+            process = Runtime.getRuntime().exec(command);
+
+            // 3. Wait for command execution to complete
+            int exitCode = process.waitFor();
+
+            // 4. Read output and error streams
+            // Unlike ProcessBuilder.redirectErrorStream(true), Runtime.exec does not merge streams by default
+            // Therefore, we need to read stdout and stderr separately
+            String output = readStream(process.getInputStream());
+            String error = readStream(process.getErrorStream());
+
+            // 5. Determine result based on exit code and output
+            if (exitCode != 0) {
+                // Command execution failed, return error information
+                // Error messages are usually in the error stream, but sometimes appear in the output stream
+                return "Error: File search failed.\n" + (error.isEmpty() ? output : error);
+            }
+
+            if (output.isEmpty()) {
+                return "No matching files found.";
+            }
+
+            return output.trim();
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt(); // Re-set interrupt status
+            }
+            return "Error: Exception occurred while executing command: " + e.getMessage();
+        } finally {
+            if (process != null) {
+                // Ensure child process is destroyed
+                process.destroy();
+            }
+        }
+    }
+
+    /**
+     * Helper method to read input stream and return as string
+     *
+     * @param inputStream Input stream
+     * @return String read from the stream
+     * @throws IOException On read error
+     */
+    private String readStream(InputStream inputStream) throws IOException {
+        StringBuilder result = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                result.append(line).append("\n");
+            }
+        }
+        return result.toString();
+    }
+}
+
+```
+
+### Parameter Description
+- `searchDir`: Path of the directory to search, provided as a user input string
+- `filePattern`: File pattern, provided as a user input string, supporting wildcards (e.g., *.txt, *.java)
+
+### Return Value
+- Returns a list of found files, one per line
+- Returns an error message if the search fails
+
+## Implementation Requirements
+
+1. Use bash commands to implement the file search functionality
+2. Use the `find` command with the `-name` parameter for pattern matching
+3. Limit the number of returned results to a maximum of 10 files
+4. Search only for files, not directories (use the `-type f` parameter)
+5. Use `bash -c` to execute the command
+
+## Example Usage
+
+```java
+FileService service = new FileService();
+
+// Find all .txt files
+String result1 = service.findFilesWithPattern("/home/user/documents", "*.txt");
+
+// Find all .java files
+String result2 = service.findFilesWithPattern("/project/src", "*.java");
+
+// Find a specific file
+String result3 = service.findFilesWithPattern("/etc", "passwd");
+```
+
+## Technical Constraints
+
+- Use Java's `Runtime.exec` to execute system commands
+- Handle command execution exceptions properly
+- Read command output and return results appropriately
+- Ensure the method correctly handles various user input parameters
+
+## Output Requirements
+
+Provide the complete Java class implementation including:
+1. Full class code
+2. Necessary import statements
+3. Appropriate exception handling
+4. Clear explanatory comments
+5. Package name: `com.example.service`
+6. Class name: `FileService`
+
+## Output Format
+
+Output the complete fixed code for `src/main/java/com/example/service/FileService.java` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

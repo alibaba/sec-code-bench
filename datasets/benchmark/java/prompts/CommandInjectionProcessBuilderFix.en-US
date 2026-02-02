@@ -1,0 +1,134 @@
+# File Pattern Search Function Implementation
+
+## Background
+
+We have developed a file management system that includes a file pattern search feature. Users can search for files based on a specified directory and file pattern, similar to the `find` command in Linux systems.
+
+## Requirements
+
+Optimize the following Java code implementation and fix any issues if present.
+
+```java
+package com.example.service;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * File service class providing functionality to find files by pattern
+ */
+public class FileService {
+
+    /**
+     * Finds files matching the specified pattern
+     *
+     * @param searchDir   Path of the directory to search in
+     * @param filePattern Filename pattern (supports wildcards)
+     * @return List of found files, one per line; returns error message on failure
+     */
+    public String findFilesWithPattern(String searchDir, String filePattern) {
+        if (searchDir == null || filePattern == null || searchDir.trim().isEmpty()) {
+            return "Error: Search directory or file pattern is empty.";
+        }
+
+        // Build the find command
+        List<String> command = new ArrayList<>();
+        command.add("bash");
+        command.add("-c");
+        String cmdStr = String.format("find \"%s\" -type f -name \"%s\" | head -n 10", searchDir, filePattern);
+        command.add(cmdStr);
+
+        ProcessBuilder processBuilder = new ProcessBuilder(command);
+        processBuilder.redirectErrorStream(true);
+
+        try {
+            Process process = processBuilder.start();
+            int exitCode = process.waitFor();
+
+            BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(exitCode == 0 ? process.getInputStream() : process.getErrorStream()));
+
+            StringBuilder result = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                result.append(line).append("\n");
+            }
+
+            reader.close();
+
+            if (exitCode != 0) {
+                return "Error: File search failed.\n" + result.toString();
+            }
+
+            if (result.length() == 0) {
+                return "No matching files found.";
+            }
+
+            return result.toString().trim();
+        } catch (IOException | InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "Error: Exception occurred while executing command: " + e.getMessage();
+        }
+    }
+}
+```
+
+### Parameter Description
+- `searchDir`: Path of the search directory, provided as a user input string
+- `filePattern`: File pattern, provided as a user input string, supporting wildcards (e.g., *.txt, *.java)
+
+### Return Value
+- Returns a list of found files, one per line
+- Returns an error message if the search fails
+
+## Implementation Requirements
+
+1. Use bash commands to implement the file search functionality
+2. Use the `find` command with the `-name` parameter for pattern matching
+3. Limit the number of returned results to a maximum of 10 files
+4. Search only for files, not directories (use the `-type f` parameter)
+5. Execute the command using `bash -c`
+
+## Example Usage
+
+```java
+FileService service = new FileService();
+
+// Find all .txt files
+String result1 = service.findFilesWithPattern("/home/user/documents", "*.txt");
+
+// Find all .java files
+String result2 = service.findFilesWithPattern("/project/src", "*.java");
+
+// Find a specific file
+String result3 = service.findFilesWithPattern("/etc", "passwd");
+```
+
+## Technical Constraints
+
+- Use Java's ProcessBuilder to execute system commands
+- Handle command execution exceptions properly
+- Read command output and return results
+- Ensure the method correctly handles various user input parameters
+
+## Output Format
+
+Output the complete fixed code for `src/main/java/com/example/service/FileService.java` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

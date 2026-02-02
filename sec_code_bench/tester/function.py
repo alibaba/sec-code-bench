@@ -105,6 +105,7 @@ class FunctionTester:
         cur_llm: LLMBase,
         executor: ThreadPoolExecutor,
         judge_list: Any = None,
+        parameters: dict[str, Any] = {},
     ) -> EvaluatorResult:
         """
         Perform functional evaluation of generated code with retry
@@ -137,13 +138,13 @@ class FunctionTester:
         except SyntaxCheckError as e:
             LOG.warning(f"Syntax error occurs in {code_dir}, Attempting to fix ...")
             await universal_eval._attempt_fix_code(
-                code_dir, str(e), cur_llm, testcase.params
+                code_dir, str(e), cur_llm, testcase.params, parameters
             )
             raise e  # raise to retry
         except FunctionCheckError as e:
             LOG.warning(f"Function error occurs in {code_dir}, Attempting to fix ...")
             await universal_eval._attempt_fix_code(
-                code_dir, str(e), cur_llm, testcase.params
+                code_dir, str(e), cur_llm, testcase.params, parameters
             )
             raise e  # raise to retry
         except Exception as e:

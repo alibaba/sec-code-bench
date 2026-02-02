@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import copy
 import os
 import re
@@ -80,6 +81,17 @@ def parse_and_check_args() -> argparse.Namespace:
         nargs="+",
     )
 
+    parser.add_argument(
+        "--parameters",
+        type=str,
+        default=None,
+        help=(
+            "Optional JSON string of parameters to pass to LLM API calls. "
+            "e.g., '{\"enable_thinking\": true}'. "
+            "These parameters will be merged into the API request body."
+        ),
+    )
+
     args = parser.parse_args()
 
     basic_checker(args, parser)
@@ -87,12 +99,11 @@ def parse_and_check_args() -> argparse.Namespace:
     return args
 
 
-async def format_response(testcase: Testcase, response: str) -> list[tuple[str, str]]:
+async def format_response(response: str) -> list[tuple[str, str]]:
     """
     Format the LLM response to extract code segments.
 
     Args:
-        testcase (Testcase): Test case object containing parameters.
         response (str): Raw response from LLM.
 
     Returns:
@@ -101,31 +112,126 @@ async def format_response(testcase: Testcase, response: str) -> list[tuple[str, 
     Raises:
         ValueError: If no match is found for a file name.
     """
-    format_code = []
-    params = testcase.params
-    for file_name in params:
-        pattern = "<" + file_name + ">" + """(.*?)""" + "</" + file_name + ">"
-        # The response from the LLM may have case inconsistencies.
-        match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+    try:
+        extracted_xml = extract_xml_from_response(response)
+        result = xml_to_dict(extracted_xml)
+        if not isinstance(result, dict):
+            LOG.error(f"xml_to_dict returned non-dict type: {type(result)}")
+            raise ValueError(f"no valid xml content found in LLM response")
 
-        if match:
-            content = match.group(1).strip().rstrip()
-            # Remove code block markers if present
-            trimmed_text = (
-                "\n".join(content.splitlines()[1:])
-                if content.startswith("```")
-                else content
-            )
-            trimmed_text = (
-                "\n".join(trimmed_text.splitlines()[:-1])
-                if trimmed_text.endswith("```")
-                else trimmed_text
-            )
-        else:
-            raise ValueError(f"No match found for {file_name}")
-        format_code.append((file_name, trimmed_text))
-    return format_code
+        codes = result.get("result", {})
+        if not isinstance(codes, dict):
+            LOG.error(f"Result is not a dict: {codes}")
+            raise ValueError(f"no valid xml content found in LLM response")
 
+        code_list = codes.get("code", [])
+        if not isinstance(code_list, list):
+            LOG.error(f"Code is not a list: {code_list}")
+            raise ValueError(f"no valid xml content found in LLM response")
+
+        if not code_list:
+            LOG.error("Code list is empty")
+            raise ValueError(f"no valid xml content found in LLM response")
+
+        result_list = []
+        for code_item in code_list:
+            if not isinstance(code_item, dict):
+                LOG.error(f"Code item is not a dict: {code_item}")
+                continue
+
+            path_list = code_item.get("path", [])
+            content_list = code_item.get("content", [])
+
+            if not path_list or not content_list:
+                LOG.error(f"Missing path or content in code item")
+                continue
+
+            path = path_list[0] if isinstance(path_list, list) else path_list
+            code_content = content_list[0] if isinstance(content_list, list) else content_list
+
+            if not path or not code_content:
+                LOG.error(f"Empty path or content")
+                continue
+
+            path = path.strip()
+
+            if "/" in path:
+                file_name = path.rsplit("/", 1)[-1]
+            else:
+                file_name = path
+
+            if not file_name or file_name.strip() == "":
+                raise ValueError(f"Invalid file path: unable to extract file name from '{path}'")
+
+            result_list.append((file_name, code_content))
+
+        return result_list
+
+    except Exception as e:
+        LOG.error(f"Error processing XML code: {e}")
+        LOG.error(f"XML content preview: {response[:500]}...")
+        return []
+    
+def extract_xml_from_response(response: str) -> str:
+    """
+    XML Extract the XML string from the LLM response.
+
+    Args:
+        response: LLM response string
+
+    Returns:
+        Extracted XML string
+    """
+    code_block_match = re.search(r'```(?:xml)?\s*(<result>.*?</result>)\s*```', response, re.DOTALL)
+    if code_block_match:
+        return code_block_match.group(1)
+
+    pattern = r"<result>.*?</result>"
+    matched = re.findall(pattern, response, re.DOTALL | re.MULTILINE)
+    if matched:
+        return matched[-1]
+
+    return response
+
+def xml_to_dict(xml_string, tags=None):
+    import xml.etree.ElementTree as ET
+
+    xml_string = fix_xml(xml_string, tags)
+    try:
+        root = ET.fromstring(xml_string)
+        result = {root.tag: xml_to_dict_(root)}
+        return result
+    except ET.ParseError as e:
+        raise Exception(f"xml parse error: {e}")
+    
+def xml_to_dict_(element):
+    children = list(element)
+    text = element.text.strip() if element.text and element.text.strip() else None
+
+    if not children:
+        return text
+
+    result = {}
+    for child in children:
+        child_data = xml_to_dict_(child)
+        if child.tag not in result:
+            result[child.tag] = []
+        result[child.tag].append(child_data)
+
+    return result
+
+
+def fix_xml(xml_string, tag_list=None):
+    if tag_list:
+        for tag in tag_list:
+            fixed_xml = re.sub(
+                f'<{tag}>(.*?)</{tag}>',
+                fr'<{tag}><![CDATA[\1]]></{tag}>',
+                xml_string,
+                flags=re.DOTALL
+            )
+            xml_string = fixed_xml
+    return xml_string
 
 async def run_once(
     args: argparse.Namespace,
@@ -136,6 +242,7 @@ async def run_once(
     scenario: TestScenario,
     executor: ThreadPoolExecutor,
     llm_manager: LLMManager,
+    parameters: dict[str, Any]
 ) -> None:
     """
     Handle one test case under one scenario.
@@ -153,7 +260,7 @@ async def run_once(
     # Get LLM response, ensure it's a string result
     try:
         prompt = testcase.get_scenario_prompt(scenario)
-        response = await llm.aquery(prompt)
+        response = await llm.aquery(prompt, parameters=parameters)
     except Exception as e:
         LOG.error(f"LLM query failed for {testcase.template}: {e}", exc_info=True)
         testcase.set_error_result(
@@ -174,7 +281,7 @@ async def run_once(
 
     # Format response to ensure it's executable code
     try:
-        code_list = await format_response(testcase, response)
+        code_list = await format_response(response)
     except Exception as e:
         LOG.error(f"Failed to format response: {str(e)}")
         testcase.set_error_result(
@@ -223,7 +330,7 @@ async def run_once(
 
     try:
         fun_result = await FunctionTester.function_eval_with_retry(
-            testcase, code_dir, llm_manager, llm, executor, args.judge_llm_list
+            testcase, code_dir, llm_manager, llm, executor, args.judge_llm_list, parameters
         )
         short_result = copy.deepcopy(fun_result)
         short_result.stdout = "see log for details" if short_result.stdout else ""
@@ -321,6 +428,16 @@ async def main() -> int:
     LOCALE = config.get("BASE", "locale")
     BATCH_SIZE = config.get("BASE", "testcase_batch_size", 10)
 
+    # Parse parameters from command line if provided
+    parameters: dict[str, Any] = {}
+    if args.parameters:
+        try:
+            parameters = json.loads(args.parameters)
+            LOG.info(f"Using parameters: {parameters}")
+        except json.JSONDecodeError as e:
+            LOG.error(f"Failed to parse parameters JSON: {e}")
+            return 1
+        
     llm_manager = basic_init_llm(args, LOG)
 
     testcases_list = basic_init_testcase(args, LOG)
@@ -357,6 +474,7 @@ async def main() -> int:
                         scenario,
                         executor,
                         llm_manager,
+                        parameters,
                     )
                 )
                 for cycle in range(args.experiment_cycle)

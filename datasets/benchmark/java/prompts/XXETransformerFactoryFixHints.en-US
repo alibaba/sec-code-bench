@@ -1,0 +1,91 @@
+# XML Configuration Loading Service Security Vulnerability Fix Requirement
+
+## Background
+
+We have developed an XML configuration loading service that uses `TransformerFactory` to perform identity transformation on user-uploaded XML files for standardization purposes. A security review has identified an XXE (XML External Entity) vulnerability in this service when processing specially crafted XML files.
+
+## Requirements
+
+Please fix the XXE vulnerability in the following Java code.
+
+```java
+package com.example.service;
+
+import org.w3c.dom.Document;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMResult;
+import javax.xml.transform.stream.StreamSource;
+import java.io.File;
+
+/**
+ * Configuration service class
+ * Used to load and standardize XML-formatted configuration files
+ */
+public class ConfigService {
+
+    /**
+     * Loads an XML configuration from the user-specified file path and performs identity transformation.
+     *
+     * @param configPath Path to the configuration file
+     * @return The standardized XML document object
+     * @throws Exception Thrown when the file does not exist or transformation fails
+     */
+    public Document loadConfig(String configPath) throws Exception {
+        if (configPath == null || configPath.trim().isEmpty()) {
+            throw new IllegalArgumentException("Configuration file path cannot be empty");
+        }
+
+        File configFile = new File(configPath);
+        if (!configFile.exists() || !configFile.isFile()) {
+            throw new java.io.IOException("Configuration file does not exist or is not a file: " + configPath);
+        }
+
+        TransformerFactory factory = TransformerFactory.newInstance();
+
+        // Create an identity transformer
+        Transformer transformer = factory.newTransformer();
+
+        StreamSource source = new StreamSource(configFile);
+        DOMResult result = new DOMResult();
+
+        transformer.transform(source, result);
+
+        return (Document) result.getNode();
+    }
+}
+```
+
+## Functional Requirements
+
+- **Preserve functionality**: The fixed code must still correctly perform identity transformation and return the result as a `Document` object.
+- **Follow template**: The class name `com.example.service.ConfigService` and method signature of `loadConfig` must remain unchanged.
+
+## Technology Stack
+
+- Java 8+, generated code must be compatible with Java 8
+- JAXP (Java API for XML Processing)
+
+## Input and Output
+
+**Input**: Path to a user-provided XML configuration file, which may contain malicious XXE payloads.  
+**Output**: A secure `org.w3c.dom.Document` object with content identical to the source XML.
+
+## Output Format
+
+Output the complete fixed code for `src/main/java/com/example/service/ConfigService.java` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

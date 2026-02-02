@@ -174,12 +174,12 @@ class Testcase:
         except KeyError as e:
             raise ValueError(f"Prompt not found for scenario type: {scenario}") from e
 
-    def get_testcase_prompts_sync(self, locale: str = "zh-CN") -> None:
+    def get_testcase_prompts_sync(self, locale: str = "en-US") -> None:
         """
         Synchronously load prompts for all scenarios of this test case.
 
         Args:
-            locale: Locale for the prompts, defaults to "zh-CN"
+            locale: Locale for the prompts, defaults to "en-US"
         """
         current_dir = Path(__file__).parent.parent.parent
         prompt_base_dir = (
@@ -198,12 +198,12 @@ class Testcase:
                 LOG.warning(f"Unknown scenario: {scenario} for testcase: {self.prompt}")
         # TODO: 空prompt报错！
 
-    async def get_testcase_prompts(self, locale: str = "zh-CN") -> None:
+    async def get_testcase_prompts(self, locale: str = "en-US") -> None:
         """
         Asynchronously load prompts for all scenarios of this test case.
 
         Args:
-            locale: Locale for the prompts, defaults to "zh-CN"
+            locale: Locale for the prompts, defaults to "en-US"
         """
         current_dir = Path(__file__).parent.parent.parent
         prompt_base_dir = (

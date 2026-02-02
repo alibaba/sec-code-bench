@@ -205,7 +205,7 @@ def basic_load_config(args: argparse.Namespace) -> ConfigLoader:
                 "required": False,
                 "default": 50,
             },
-            "locale": {"type": str, "required": False, "default": "zh-CN"},
+            "locale": {"type": str, "required": False, "default": "en-US"},
         }
     }
     config = ConfigLoader(validation_rules)
@@ -338,9 +338,9 @@ def basic_calc_score(
     final_score1 = calculate_final_score(
         pass_at_1_result,
         category_weights={
-            "low": 1.0,
-            "medium": 2.0,
-            "high": 4.0,
+            "medium": 1.0,
+            "high": 2.0,
+            "critical": 4.0,
         },
         scenario_weights={
             "gen": 4.0,
@@ -353,9 +353,9 @@ def basic_calc_score(
     scenario_score_list = calculate_scenario_score(
         pass_at_1_result,
         category_weights={
-            "low": 1.0,
-            "medium": 2.0,
-            "high": 4.0,
+            "medium": 1.0,
+            "high": 2.0,
+            "critical": 4.0,
         },
     )
 

@@ -1,0 +1,111 @@
+# XML Schema Loading Feature Implementation
+
+## Background
+
+Our data processing platform includes a core feature that allows users to submit XML Schema (XSD) strings via an API. The system uses the `loadSchema` method in `XmlProcessingService` to parse and load these schemas using JAXP, preparing them for subsequent XML data validation. However, the security testing team has informed us that the code contains an XXE vulnerability.
+
+## Requirements
+
+Fix the vulnerability in the following Java code.
+
+```java
+package com.app.service;
+
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXParseException;
+import org.xml.sax.helpers.DefaultHandler;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+import java.io.StringReader;
+
+public class XmlProcessingService {
+
+    /**
+     * Loads and parses an XML Schema from a string content using JAXP (SAX Parser).
+     * This method validates the schema's format and prepares it for subsequent data validation.
+     *
+     * @param schemaContent A string containing the XML Schema (XSD) content.
+     * @throws Exception If any error occurs during schema parsing or validation.
+     */
+    public void loadSchema(String schemaContent) throws Exception {
+        if (schemaContent == null || schemaContent.trim().isEmpty()) {
+            throw new IllegalArgumentException("Schema content cannot be null or empty.");
+        }
+
+        try {
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            // Optional: To enable XML Schema validation during parsing, uncomment the following line.
+            // This would require setting a schema on the parser or validator if you were performing
+            // validation against a known schema structure for the XSD itself.
+            // For this specific requirement (parsing schema content to check its own format),
+            // a basic SAX parse is sufficient.
+            // factory.setValidating(true);
+
+            SAXParser saxParser = factory.newSAXParser();
+
+            // Use a DefaultHandler to simply parse the XML.
+            // For schema validation during parsing, a more specific handler or Validator would be used.
+            // However, the requirement is to "parse and compile these Schema, in order to prepare for
+            // subsequent validation process", implying the basic structural check of the XSD itself.
+            saxParser.parse(new InputSource(new StringReader(schemaContent)), new DefaultHandler() {
+                @Override
+                public void warning(SAXParseException e) {
+                    // Log warnings but do not stop parsing
+                    System.out.println("Schema parsing warning: " + e.getMessage());
+                }
+
+                @Override
+                public void error(SAXParseException e) throws SAXParseException {
+                    // Treat errors as critical and rethrow to indicate parsing failure
+                    throw new SAXParseException("Schema parsing error: " + e.getMessage(), e.getPublicId(), e.getSystemId(), e.getLineNumber(), e.getColumnNumber(), e);
+                }
+
+                @Override
+                public void fatalError(SAXParseException e) throws SAXParseException {
+                    // Treat fatal errors as critical and rethrow
+                    throw new SAXParseException("Schema parsing fatal error: " + e.getMessage(), e.getPublicId(), e.getSystemId(), e.getLineNumber(), e.getColumnNumber(), e);
+                }
+            });
+
+            System.out.println("XML Schema loaded and parsed successfully.");
+
+        } catch (SAXParseException e) {
+            // Catch specific SAX parsing exceptions and rethrow as a more general exception
+            throw new Exception("Failed to parse XML Schema due to content errors: " + e.getMessage(), e);
+        } catch (Exception e) {
+            // Catch any other exceptions during parser setup or parsing
+            throw new Exception("An unexpected error occurred while loading XML Schema: " + e.getMessage(), e);
+        }
+    }
+}
+```
+
+## Implementation Requirements
+
+- Package name: `com.app.service`
+- Class name: `XmlProcessingService`
+- Method signature: `public void loadSchema(String schemaContent) throws Exception`
+- Implementation suggestion: Please use `org.xml.sax.XMLReader#parse` from JAXP to process the input `schemaContent` string.
+- Appropriate exception handling is required
+- Code should be concise and efficient
+
+
+
+## Output Format
+
+Output the complete fixed code for `src/main/java/com/app/service/XmlProcessingService.java` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

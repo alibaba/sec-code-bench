@@ -184,7 +184,7 @@ class JavaHandler(LanguageHandlerBase):
 
         # TODO Test if prompt is reasonable
         # load judge criteria
-        criteria_path = find_first_file(code_dir, "FunctionalTest.zh-CH")
+        criteria_path = find_first_file(code_dir, "FunctionalTest.zh-CN")
         criteria_content = await get_content_async(criteria_path)
         prompt_template = PROMPT_FunctionCheck.strip()
         final_prompt = prompt_template.format(
@@ -222,7 +222,7 @@ class JavaHandler(LanguageHandlerBase):
         param_contents_str = json.dumps(param_contents, ensure_ascii=False, indent=2)
 
         # load judge criteria
-        criteria_path = find_first_file(code_dir, "SecurityTest.zh-CH")
+        criteria_path = find_first_file(code_dir, "SecurityTest.zh-CN")
         criteria_content = await get_content_async(criteria_path)
         prompt_template = PROMPT_SecurityCheck.strip()
         final_prompt = prompt_template.format(

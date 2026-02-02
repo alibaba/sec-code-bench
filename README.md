@@ -31,9 +31,9 @@ However, existing security benchmarks in the community suffer from significant l
 
 To address these challenges, we introduce `SecCodeBench`, a benchmark suite purpose-built for **modern Agentic Coding Tools**. It ensures evaluation depth and breadth through three core design principles:
 
-*   **Dataset**: We ensure the authenticity and diversity of our test cases. Most of the cases are based on **anonymized, real-world historical vulnerabilities from within Alibaba** and are presented as complete, runnable projects rather than mere code snippets. Each test case is uniquely defined by four attributes: **(Functional Requirements, Programming Language, Third-Party Libraries, Function Interface)**. Currently, it includes 37 test cases covering 16 CWE types, adapted into four testing modes: Code Generation (native/security-aware) and Code Fix (native/security-aware). Each test case is crafted by a team of senior security experts and undergoes a rigorous three-person peer review. Furthermore, all cases have been subjected to multiple rounds of empirical testing and fine-tuning across more than ten models to ensure their fairness and challenge.
+*   **Dataset**: We ensure the authenticity and diversity of our test cases. Most of the cases are based on **anonymized, real-world historical vulnerabilities from within Alibaba** and are presented as complete, runnable projects rather than mere code snippets. Each test case is uniquely defined by four attributes: **(Functional Requirements, Programming Language, Third-Party Libraries, Function Interface)**. Currently, it includes 53 test cases covering 16 CWE types, adapted into four testing modes: Code Generation (native/security-aware) and Code Fix (native/security-aware). Each test case is crafted by a team of senior security experts and undergoes a rigorous three-person peer review. Furthermore, all cases have been subjected to multiple rounds of empirical testing and fine-tuning across more than ten models to ensure their fairness and challenge.
 
-*   **Evaluation**: We have established a **multi-stage, high-precision evaluation process**. This process is governed by a **"Functionality-First" principle**, where generated code must first pass all functional tests to qualify for security assessment. The security evaluation employs a layered strategy: it **prioritizes dynamic execution-based validation using Proof-of-Concept (PoC) exploits** to ensure objective and reliable results. For complex scenarios not coverable by dynamic execution, we introduce an LLM-as-a-Judge infused with domain-specific security knowledge. The final score is a weighted sum of the pass@1 results, where the weights holistically consider factors such as the **test scenario** (with a 4:1 ratio for native vs. security-aware modes) and a combined metric of **vulnerability prevalence and severity** (assigned weights of 4, 2, and 1 for high, medium, and low tiers, respectively). This sophisticated scoring mechanism is designed to provide a more authentic reflection of the model's comprehensive security capabilities.
+*   **Evaluation**: We have established a **multi-stage, high-precision evaluation process**. This process is governed by a **"Functionality-First" principle**, where generated code must first pass all functional tests to qualify for security assessment. The security evaluation employs a layered strategy: it **prioritizes dynamic execution-based validation using Proof-of-Concept (PoC) exploits** to ensure objective and reliable results. For complex scenarios not coverable by dynamic execution, we introduce an LLM-as-a-Judge infused with domain-specific security knowledge. The final score is a weighted sum of the pass@1 results, where the weights holistically consider factors such as the **test scenario** (with a 4:1 ratio for native vs. security-aware modes) and a combined metric of **vulnerability prevalence and severity** (assigned weights of 4, 2, and 1 for critical, high, and medium tiers, respectively). This sophisticated scoring mechanism is designed to provide a more authentic reflection of the model's comprehensive security capabilities.
 
 *   **Framework**: We provide a highly extensible testing framework. It not only supports standard multi-turn dialogue testing of model APIs but also enables **end-to-end automated evaluation of mainstream agentic coding tools (e.g., IDE plugins, CLI tools)**. Additionally, the framework generates **[comprehensive, visual reports and logs](https://alibaba.github.io/sec-code-bench)** to facilitate in-depth analysis and model diagnostics, thereby driving continuous improvement in the secure coding capabilities of large models.
 
@@ -110,6 +110,7 @@ $ uv run -m sec_code_bench.eval \
 usage: eval.py [-h] --benchmark BENCHMARK [--config CONFIG] [--log_level {DEBUG,INFO,WARNING,ERROR,CRITICAL}] [--log-dir LOG_DIR] --language_list LANGUAGE_LIST [LANGUAGE_LIST ...]
                --eval_llm EVAL_LLM
                --judge_llm_list JUDGE_LLM_LIST [JUDGE_LLM_LIST ...] [--experiment_cycle EXPERIMENT_CYCLE]
+               [--parameters PARAMETERS]
 
 SecCodeBench - A Security Benchmark for AI-Generated and -Repaired Code
 
@@ -130,6 +131,9 @@ options:
                         times. Must be odd number for majority voting.
   --experiment_cycle EXPERIMENT_CYCLE
                         Number of experiment cycles for each test case (default: 10)
+  --parameters PARAMETERS_IN_JSON
+                        Optional JSON string of parameters to pass to LLM API calls.
+                        e.g., '{"enable_thinking": true}'. These parameters will be merged into the API request body.
 ```
 
 For more configuration options, please refer to `config.ini`。
