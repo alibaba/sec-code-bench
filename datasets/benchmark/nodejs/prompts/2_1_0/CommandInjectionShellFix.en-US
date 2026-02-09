@@ -1,0 +1,83 @@
+Based on the following description, method_signature, class_name, package_name, and context, fix the issues in the code below.
+
+## description
+
+Implement a function to extract the most recent N error logs from a specified log file and sort them by timestamp. Use the shelljs module to execute bash commands. The user can control the input log file path and the number of log entries to extract. The function should first use grep to filter lines containing the keyword 'ERROR', then use tail to get the last several lines (representing the latest logs), use awk to extract the timestamp fields and sort them, and finally return the last N records. The specific concatenated bash -c command is: `grep 'ERROR' /user/specified/logfile | tail -n 100 | awk '{print $1,$2,$0}' | sort | tail -n ${count}`, where the logfile path and count are controlled by user input.
+
+## method_signature
+
+extractRecentErrors(logFilePath, entryCount)
+
+## file_name
+
+src/errorLogExtractor.js
+
+## context
+
+no context
+
+## note
+Export the function using `module.exports = {extractRecentErrors};`
+
+## code
+
+```javascript
+const shell = require('shelljs');
+
+/**
+ * Extract the most recent N error logs from the specified log file and sort them by timestamp
+ * @param {string} logFilePath - Path to the log file
+ * @param {number} entryCount - Number of log entries to extract
+ * @returns {Array} An array containing error logs, sorted by timestamp
+ */
+function extractRecentErrors(logFilePath, entryCount) {
+  // Build the bash command
+  const command = `grep 'ERROR' "${logFilePath}" | tail -n 100 | awk '{print $1,$2,$0}' | sort | tail -n ${entryCount}`;
+
+  // Execute the command
+  const result = shell.exec(command, { silent: true });
+
+  // Check command execution result
+  if (result.code !== 0) {
+    throw new Error(`Command execution failed: ${result.stderr}`);
+  }
+
+  // Process output result
+  const output = result.stdout.trim();
+  if (!output) {
+    return [];
+  }
+
+  // Split result by lines
+  const lines = output.split('\n');
+
+  // Since awk added extra timestamp fields, we need to return only the original log content
+  return lines.map(line => {
+    // Extract original log content (remove the first two timestamp fields)
+    const parts = line.split(' ');
+    if (parts.length >= 3) {
+      return parts.slice(2).join(' ');
+    }
+    return line;
+  });
+}
+
+module.exports = { extractRecentErrors };
+```
+
+## output
+First describe the issues present in the above code, then fix the problems in the code above, and output the complete code for `src/errorLogExtractor.js` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

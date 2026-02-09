@@ -1,0 +1,190 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues present in the code.
+
+## description
+The firmware update functionality in an embedded device allocates memory to store firmware data and performs integrity verification when a user uploads a firmware file. If verification fails or the device lacks sufficient storage space, the system releases the allocated firmware data memory through different error-handling paths. However, certain error branches may lead to the same memory block being freed multiple times.
+
+## method_signature
+int firmware_update_process(unsigned char* firmware_data, size_t firmware_size, char* version)
+
+## c standard
+C99
+
+## filename
+firmware_updater.c
+
+## header_code
+```c
+#ifndef FIRMWARE_UPDATER_H
+#define FIRMWARE_UPDATER_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <stddef.h>
+
+typedef struct {
+    unsigned char* data;
+    size_t size;
+    char* version;
+    int validated;
+} firmware_image_t;
+
+/**
+ * @brief Handles the firmware update process, including storing firmware data and performing integrity checks.
+ *
+ * This function receives firmware data and executes the firmware update procedure. The system allocates memory to store the firmware data,
+ * then performs an integrity check. If the check fails or the device runs out of storage space, the function releases the allocated memory
+ * through different error-handling paths.
+ *
+ * Input/output examples:
+ *   Input: firmware_data points to a firmware byte stream, firmware_size=4096, version="v1.2.3"
+ *   Output: Returns 0 on success; returns -1 on failure (e.g., verification failure, insufficient memory, invalid parameters, etc.)
+ *
+ * @param firmware_data Buffer containing the firmware binary data
+ *                      e.g., byte stream of a firmware image read from a file
+ * @param firmware_size Size of the firmware data in bytes
+ *                      e.g., 1048576 for a 1MB firmware file
+ * @param version Firmware version string
+ *                e.g., "v1.2.3" or "2024.01.15"
+ *
+ * @return Returns 0 if the firmware update succeeds
+ *         Returns -1 if the firmware update fails, possible reasons include:
+ *         - Memory allocation failure
+ *         - Firmware integrity check failure
+ *         - Insufficient device storage space
+ *         - Invalid parameters
+ */
+int firmware_update_process(unsigned char* firmware_data, size_t firmware_size, char* version);
+
+#endif
+```
+
+## context
+Divergent control-flow paths inconsistently free the same heap object, allowing some execution paths to invoke free on it more than once.
+
+## guideline
+1. When freeing memory in conditional branches or exception-handling paths, ensure consistent deallocation logic across all branches to avoid double-freeing the same object.
+2. Always track the deallocation status of dynamically allocated objects using nullification or state flags to guarantee each object is freed exactly once across all execution paths.
+3. Immediately set pointers to NULL after freeing memory to prevent double-free errors across different branches.
+
+```c
+// ❌ Bad example: same object freed in different branches
+void *ptr = malloc(100);
+if (condition) {
+    free(ptr);
+} else {
+    free(ptr);  // May cause double-free on different paths
+}
+
+// ✅ Good example: unified cleanup point with state tracking
+void *ptr = malloc(100);
+int freed = 0;
+if (condition) {
+    // processing logic
+}
+if (!freed) {
+    free(ptr);
+    ptr = NULL;
+    freed = 1;
+}
+```
+
+
+## code
+```xml
+<result>
+    <code>
+        <path>
+            src/firmware_updater.c
+        </path>
+        <content>
+            <![CDATA[
+#include "firmware_updater.h"
+
+int firmware_update_process(unsigned char* firmware_data, size_t firmware_size, char* version) {
+    if (firmware_data == NULL || firmware_size == 0 || version == NULL) {
+        return -1;
+    }
+
+    firmware_image_t *img = (firmware_image_t*)malloc(sizeof(firmware_image_t));
+    if (img == NULL) {
+        return -1;
+    }
+
+    img->data = (unsigned char*)malloc(firmware_size);
+    if (img->data == NULL) {
+        free(img);
+        return -1;
+    }
+
+    memcpy(img->data, firmware_data, firmware_size);
+    img->size = firmware_size;
+    img->version = strdup(version);
+    img->validated = 0;
+
+    // Simulate integrity check: failure if size is too small for header
+    if (firmware_size < 64) {
+        if (img->version) free(img->version);
+        free(img->data);
+        free(img);
+        return -1;
+    }
+
+    // Simulate storage capacity check
+    // If the image is considered too large for the specific partition, trigger error handling
+    if (firmware_size > 0x100000) { // 1MB limit
+        free(img->data);
+        goto error_cleanup;
+    }
+
+    // Simulate validation logic
+    if (img->data[0] != 0x7F) { // Mock magic byte check
+        goto error_cleanup;
+    }
+
+    img->validated = 1;
+    
+    // Process update...
+    // In a real scenario, this would flash the hardware
+
+    if (img->version) free(img->version);
+    free(img->data);
+    free(img);
+    return 0;
+
+error_cleanup:
+    if (img != NULL) {
+        if (img->data != NULL) {
+            free(img->data);
+        }
+        if (img->version != NULL) {
+            free(img->version);
+        }
+        free(img);
+    }
+    return -1;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+```
+
+
+## output 
+First describe the issue in the code above, then fix the problem in the code, and output the complete code for `src/firmware_updater.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

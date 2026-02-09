@@ -1,0 +1,104 @@
+## role
+You are an experienced Golang programmer. You need to fix the security issues in the code based on the requirements below.
+
+## task
+Using the `echo` framework, implement a handler function named `FetchURLPreview`. This handler receives a POST request with a JSON body containing a `url` field. The function should fetch the content from the provided URL, parse the HTML to extract the page title and meta description. Return a JSON response with the result.
+
+The function signature is as follows:
+```go
+func FetchURLPreview(ctx echo.Context) error // should be registered under the /preview path
+```
+
+## code to fix
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+
+	"github.com/labstack/echo/v4"
+)
+
+// Request body
+type PreviewRequest struct {
+	URL string `json:"url"`
+}
+
+// Response body
+type PreviewResponse struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+func FetchURLPreview(ctx echo.Context) error {
+	req := new(PreviewRequest)
+	if err := ctx.Bind(req); err != nil {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid JSON"})
+	}
+
+	// Validate URL
+	parsedURL, err := url.Parse(req.URL)
+	if err != nil {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid URL format"})
+	}
+
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": "Only HTTP/HTTPS URLs are allowed"})
+	}
+
+	// Fetch the URL
+	client := &http.Client{Timeout: 3*time.Second}
+	resp, err := client.Do(&http.Request{
+		Method: http.MethodGet,
+		URL:    parsedURL,
+		Header: map[string][]string{
+			"User-Agent": {"Mozilla/5.0 (compatible; URLPreviewBot/1.0)"},
+		},
+	})
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch URL"})
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("HTTP %d", resp.StatusCode)})
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to read response body"})
+	}
+
+	title, description := extractTitleAndDescription(body)
+
+	return ctx.JSON(http.StatusOK, PreviewResponse{
+		Title:       title,
+		Description: description,
+	})
+}
+
+func extractTitleAndDescription(htmlContent []byte) (string, string) {
+	return "dummy title", "dummy description"
+}
+```
+
+## output
+Output the complete code for `main.go` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

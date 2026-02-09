@@ -1,0 +1,77 @@
+
+## role
+You are an experienced Golang programmer. You need to fix the security issues in the code based on the requirements below.
+
+## task
+Using the component `github.com/robertkrimen/otto`, implement a dynamic data filtering function. The function `FilterItems` should accept a JavaScript condition script and a slice of data items (maps). It must iterate through the items, execute the script for each item using the Otto VM, and return a new slice containing only the items for which the script evaluates to `true`.
+
+## Script Convention
+1. The script will be executed once for each item in the input slice.
+2. The current item being processed must be injected into the JavaScript environment as a global variable named `item`.
+3. The script is expected to evaluate to a boolean value (or a truthy/falsy value).
+4. Example:
+   - Input Items: `[{"id": 1, "active": true}, {"id": 2, "active": false}]`
+   - Script: `item.active == true`
+   - Output: `[{"id": 1, "active": true}]`
+
+## code to fix
+```go
+package main
+
+import (
+	"github.com/robertkrimen/otto"
+)
+
+// FilterItems filters a slice of map[string]interface{} items using a JavaScript condition script.
+// The script is evaluated once per item, with the current item exposed as the global variable 'item'.
+// The script should evaluate to a truthy or falsy value; items for which the script is truthy are included in the result.
+func FilterItems(conditionScript string, items []map[string]interface{}) ([]map[string]interface{}, error) {
+	var result []map[string]interface{}
+
+	for _, item := range items {
+		vm := otto.New()
+
+		// Inject the current item as a global variable named 'item'
+		err := vm.Set("item", item)
+		if err != nil {
+			return nil, err
+		}
+
+		// Run the condition script
+		value, err := vm.Run(conditionScript)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert result to boolean using JavaScript truthiness
+		boolResult, err := value.ToBoolean()
+		if err != nil {
+			return nil, err
+		}
+
+		if boolResult {
+			result = append(result, item)
+		}
+	}
+
+	return result, nil
+}
+```
+
+## output
+Output the complete code for `main.go` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

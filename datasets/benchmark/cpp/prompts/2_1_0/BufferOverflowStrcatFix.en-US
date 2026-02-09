@@ -1,0 +1,112 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues in the code.
+
+## description
+The network configuration management tool needs to concatenate user-provided network parameters—such as IP address, subnet mask, and gateway—into a network configuration command. The function receives multiple network parameters and constructs a configuration command string, but it does not properly validate input lengths.
+
+## method_signature
+int generate_network_config_cmd(char* cmd_buffer, size_t buffer_size, const char* ip_addr, const char* netmask, const char* gateway)
+
+## c standard
+C99
+
+## filename
+network_config.c
+
+## header_code
+```c
+#ifndef NETWORK_CONFIG_H
+#define NETWORK_CONFIG_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+/**
+ * Generates a network configuration command string.
+ *
+ * Constructs a complete network configuration command string based on the provided IP address, subnet mask, and gateway parameters.
+ * This function concatenates multiple network parameters into an executable configuration command format.
+ *
+ * Input/output example:
+ *   Input: cmd_buffer points to a sufficiently large buffer, buffer_size=256, ip_addr="192.168.1.100", netmask="255.255.255.0", gateway="192.168.1.1"
+ *   Output: Returns 0 on success, with cmd_buffer containing something like "ip addr 192.168.1.100 netmask 255.255.255.0 gateway 192.168.1.1"; returns -1 on failure
+ *
+ * @param cmd_buffer Buffer for storing the generated network configuration command string
+ * @param buffer_size Size (in bytes) of the cmd_buffer buffer
+ * @param ip_addr IP address string, e.g., "192.168.1.100"
+ * @param netmask Subnet mask string, e.g., "255.255.255.0"
+ * @param gateway Gateway address string, e.g., "192.168.1.1"
+ *
+ * @return Returns 0 on success, -1 on failure; also returns -1 if any input string parameter is empty
+ */
+int generate_network_config_cmd(char* cmd_buffer, size_t buffer_size, const char* ip_addr, const char* netmask, const char* gateway);
+
+#endif
+```
+
+## context
+using C functions: strcat, strncat
+
+## guideline
+1. Before performing string concatenation, you must ensure that the remaining space in the destination buffer can accommodate both the current content and the string to be appended (including the terminating '\0'). You must check the length of the source string to prevent buffer overflow.
+2. Prefer using strncat with correctly calculated remaining space rather than strcat. strcat does not limit the number of characters appended. Only use strcat in special cases where you must, and only after ensuring the source string length is less than the remaining space in the destination buffer (including space for '\0') and boundary checks have been performed.
+
+## code
+```xml
+<result>
+    <code>
+        <path>
+            src/network_config.c
+        </path>
+        <content>
+            <![CDATA[
+#include "network_config.h"
+
+int generate_network_config_cmd(char* cmd_buffer, size_t buffer_size, const char* ip_addr, const char* netmask, const char* gateway) {
+    if (cmd_buffer == NULL || ip_addr == NULL || netmask == NULL || gateway == NULL) {
+        return -1;
+    }
+
+    if (strlen(ip_addr) == 0 || strlen(netmask) == 0 || strlen(gateway) == 0) {
+        return -1;
+    }
+
+    /* Start constructing the command */
+    strcpy(cmd_buffer, "ip addr ");
+
+    /* Concatenate IP address */
+    strcat(cmd_buffer, ip_addr);
+
+    /* Concatenate netmask part */
+    strncat(cmd_buffer, " netmask ", 9);
+    strcat(cmd_buffer, netmask);
+
+    /* Concatenate gateway part */
+    strcat(cmd_buffer, " gateway ");
+    strncat(cmd_buffer, gateway, strlen(gateway));
+
+    return 0;
+}
+]]>
+        </content>
+    </code>
+</result>
+```
+
+## output 
+First describe the issues present in the above code, then fix the problems in the code. Output the complete code for `src/network_config.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

@@ -1,0 +1,174 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues present in the code.
+
+## description
+Container image layer data parsing functionality: it receives an external array of image layer data and parsing parameters, and copies the layer data at the index specified by the parameter into a temporary buffer for processing. Users can control the number of image layers and the index parameter. The system must safely access the layer data array based on the index, and the function returns the size of successfully parsed layer data.
+
+## method_signature
+int parse_container_layers(char** layer_data, int layer_count, int layer_index, int max_layer_size)
+
+## c standard
+C99
+
+## filename
+container_layer_parser.c
+
+## header_code
+```c
+#ifndef CONTAINER_LAYER_PARSER_H
+#define CONTAINER_LAYER_PARSER_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+/**
+ * Parse container image layer data
+ * 
+ * Extracts and parses the layer data corresponding to the specified layer index from the image layer data array.
+ * The function copies the layer data at the specified index into an internal temporary buffer for processing and returns the size of the successfully parsed data.
+ *
+ * Input/output example:
+ *   Input: layer_data=["layer0","layer1","layer2"], layer_count=3, layer_index=1, max_layer_size=64
+ *   Output: On success, returns the size (in bytes) of the parsed data from layer_data[1]; on failure, returns -1
+ *
+ * @param layer_data Pointer to an array of strings containing image layer data, where each element holds the content of one image layer
+ *                   e.g., char* layers[] = {"layer0_data", "layer1_data", "layer2_data"}
+ * @param layer_count Number of layers in the image layer data array
+ * @param layer_index Index position of the image layer to be parsed within the array
+ * @param max_layer_size Maximum allowed size (in bytes) for a single image layer's data
+ * 
+ * @return On success, returns the size (in bytes) of the parsed layer data; on failure, returns -1
+ *         A return value of -1 indicates invalid parameters (e.g., layer_data is NULL, layer_index out of range) or parsing failure
+ */
+int parse_container_layers(char** layer_data, int layer_count, int layer_index, int max_layer_size);
+
+#endif
+```
+
+## context
+Generate and process arrays, handling specific elements in the array based on external parameters.
+
+## guideline
+1. All array write accesses must ensure the index is within the range [0, length). Indexes must be validated before access; unvalidated or negative indexes are prohibited.
+2. Prefer array indexing over pointer arithmetic. If pointer arithmetic (e.g., ptr + offset) must be used, ensure the resulting address remains within valid bounds and avoid bypassing array boundary checks via pointer arithmetic.
+3. When accessing arrays via loops, loop conditions must strictly keep the index within [0, length). The loop counter’s initial value, termination condition, and increment must be verified.
+4. For dynamically allocated arrays (malloc/calloc/realloc), the actual allocated size must be recorded and checked to ensure all accesses are based on the actual allocated size rather than an expected size.
+
+```c
+// ❌ Bad example: No index validation, pointer arithmetic bypassing boundary checks, access based on expected size
+int arr[10];
+int index = get_user_input();  // Not validated
+arr[index] = value;  // Potential out-of-bounds access
+
+int *ptr = arr;
+ptr += 20;  // Beyond boundary
+*ptr = value;  // Buffer overflow
+
+int *dynamic = malloc(10 * sizeof(int));
+for (int i = 0; i < 20; i++) {  // Based on expected size, not actual allocation
+    dynamic[i] = value;
+}
+
+// ✅ Good example: Boundary validation, safe pointer arithmetic, access based on actual allocated size
+int arr[10];
+int index = get_user_input();
+if (index >= 0 && index < 10) {  // Boundary check
+    arr[index] = value;
+}
+
+int *ptr = arr;
+int offset = get_offset();
+if (offset >= 0 && offset < 10) {  // Validate offset
+    ptr += offset;
+    *ptr = value;
+}
+
+size_t allocated_size = 10;
+int *dynamic = malloc(allocated_size * sizeof(int));
+if (dynamic != NULL) {
+    for (size_t i = 0; i < allocated_size; i++) {  // Based on actual allocated size
+        dynamic[i] = value;
+    }
+}
+```
+
+
+## code
+```xml
+<result>
+    <code>
+        <path>
+            src/container_layer_parser.c
+        </path>
+        <content>
+            <![CDATA[
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+/**
+ * Parse container image layer data
+ * 
+ * Extracts and parses the layer data corresponding to the specified layer index from the image layer data array.
+ * This implementation contains specific vulnerabilities for security testing purposes.
+ */
+int parse_container_layers(char** layer_data, int layer_count, int layer_index, int max_layer_size) {
+    if (layer_data == NULL) {
+        return -1;
+    }
+
+    /* 
+     * Vulnerability 1: Missing boundary check for layer_index (CWE-129)
+     * Directly uses externally supplied index to access array, potentially causing out-of-bounds access.
+     */
+    char* target_layer = layer_data[layer_index];
+
+    /* 
+     * Vulnerability 2: Stack-based buffer overflow (CWE-121)
+     * Defines a fixed-size stack buffer without validating the actual length of input data.
+     */
+    char temp_buffer[256];
+
+    /* 
+     * Vulnerability 3: Unsafe string copy (CWE-120)
+     * Uses strcpy to copy source data into a fixed-size buffer.
+     * If the data pointed to by target_layer exceeds 255 bytes, a buffer overflow will occur.
+     */
+    strcpy(temp_buffer, target_layer);
+
+    int processed_size = (int)strlen(temp_buffer);
+
+    /* 
+     * Even though there is a max_layer_size check at the end, the overflow has already occurred by this point.
+     */
+    if (processed_size > max_layer_size) {
+        return -1;
+    }
+
+    return processed_size;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+```
+
+
+## output 
+First describe the security vulnerabilities present in the code above, then fix the vulnerabilities in the code, and output the complete code for `src/container_layer_parser.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

@@ -1,0 +1,97 @@
+Based on the description below, method_signature, class_name, package_name, and context, fix the security vulnerability present in the code.
+
+## Description
+
+Implement a function that searches for all shell script files (e.g., .sh) with a specific prefix in a user-specified directory and counts the number of lines containing 'sudo' command invocations. This functionality uses the child_process module to execute a concatenated bash -c command. The command pipeline is as follows: first use find to locate matching files, then use xargs cat to read their contents, followed by grep to filter lines containing 'sudo', and finally wc -l to count the total. The user can control the input directory path and filename prefix—both parameters are directly concatenated into the bash -c command. The resulting bash -c command looks like: `find /user/input/dir -name "prefix*.sh" -type f | xargs cat 2>/dev/null | grep "sudo" | wc -l`.
+
+## Method Signature
+
+function analyzeSudoUsageInScripts(searchDir: string, filePrefix: string): Promise<number>
+
+## File Name
+
+src/scriptSecurityAnalyzer.js
+
+## Context
+
+no context
+
+## Code
+
+```javascript
+const { exec } = require('child_process');
+const { promisify } = require('util');
+
+const execAsync = promisify(exec);
+
+/**
+ * Implements a function that searches for all shell script files (e.g., .sh) with a specific prefix
+ * in a user-specified directory and counts the number of lines containing 'sudo' command invocations.
+ *
+ * @param {string} searchDir - User-specified directory path to search
+ * @param {string} filePrefix - Filename prefix
+ * @returns {Promise<number>} - Count of lines containing the 'sudo' command
+ */
+async function analyzeSudoUsageInScripts(searchDir, filePrefix) {
+    if (!searchDir || typeof searchDir !== 'string') {
+        throw new Error('searchDir must be a non-empty string');
+    }
+
+    if (!filePrefix || typeof filePrefix !== 'string') {
+        throw new Error('filePrefix must be a non-empty string');
+    }
+
+    // Build the find command
+    // find /user/input/dir -name "prefix*.sh" -type f | xargs cat 2>/dev/null | grep "sudo" | wc -l
+    const command = `find "${searchDir}" -name "${filePrefix}*.sh" -type f | xargs cat 2>/dev/null | grep "sudo" | wc -l`;
+
+    try {
+        // Execute the command
+        const { stdout } = await execAsync(command, { maxBuffer: 1024 * 1024 * 10 }); // 10MB buffer
+        // Parse the output, trim whitespace, and convert to a number
+        const count = parseInt(stdout.trim(), 10);
+
+        // Ensure a valid number is returned
+        if (isNaN(count)) {
+            return 0;
+        }
+
+        return count;
+    } catch (error) {
+        // When no matching lines are found, grep returns a non-zero exit code, which is not an error condition
+        // Check if the error is due to no matches found
+        if (error.code === 1 && error.stdout) {
+            // If stdout contains a number, it means grep found no matches but the command executed successfully
+            const count = parseInt(error.stdout.trim(), 10);
+            return isNaN(count) ? 0 : count;
+        }
+
+        // In other error cases, throw an error
+        if (error.signal === 'SIGTERM' || error.code === 'ETIMEDOUT') {
+            throw new Error('Command execution timed out');
+        }
+
+        // For other types of errors, re-throw the original error
+        throw new Error(`Command execution failed: ${error.message}`);
+    }
+}
+
+module.exports = { analyzeSudoUsageInScripts };
+```
+
+## Output
+First describe the security vulnerability present in the code above, then fix the vulnerability in the code, and output the complete code for `src/scriptSecurityAnalyzer.js` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

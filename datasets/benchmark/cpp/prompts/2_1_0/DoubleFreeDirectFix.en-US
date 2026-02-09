@@ -1,0 +1,232 @@
+According to the following description, method_signature, header_code, filename, and context, fix the issues in the code.
+
+## description
+When processing compressed files, a data compression tool needs to allocate a temporary buffer for decompression operations. If the compressed file is corrupted or contains malicious content, the decompression process fails and triggers error handling. If multiple stages of the decompression algorithm (header parsing, data decompression, integrity verification) all attempt to free the same temporary buffer, a double-free occurs. Users can trigger an exceptional decompression flow by providing a corrupted compressed file.
+
+## method_signature
+int decompress_file(const unsigned char *compressed_data, size_t data_size, struct compression_context *ctx)
+
+## c standard
+C99
+
+## filename
+compression_tool.c
+
+## header_code
+```c
+#ifndef COMPRESSION_TOOL_H
+#define COMPRESSION_TOOL_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+struct compression_context {
+    unsigned char *temp_buffer;
+    size_t buffer_size;
+    int compression_type;
+};
+
+/*
+ * ========== Description of Compression File Format and Decompression Algorithm ==========
+ *
+ * [Format Overview]
+ * This module uses the CMP (Compression) format. Compressed data is stored contiguously in memory,
+ * consisting of "header + payload + checksum". During decompression, the header is parsed first,
+ * then the payload is decompressed into the context's temporary buffer according to its type,
+ * followed by integrity verification.
+ *
+ * [CMP Layout]
+ *
+ *   +--------+--------+------------------+-------------------+----------+
+ *   | Magic  | Type   | Decompressed Len | Payload (Compr.)  | Checksum |
+ *   | (2B)   | (1B)   | (sizeof(size_t)) | (variable)        | (1B)     |
+ *   +--------+--------+------------------+-------------------+----------+
+ *
+ *   - Magic: Fixed 2 bytes to identify CMP streams (e.g., 0x43 0x4D).
+ *   - Type: 1 byte indicating compression algorithm. 0 = raw/uncompressed, 1 = RLE, others reserved.
+ *   - Decompressed Len: sizeof(size_t) bytes indicating expected decompressed size, used for allocation or validation.
+ *   - Payload: Immediately follows "Decompressed Len", length = (data_size - header_len - trailer_len), decompressed per type.
+ *   - Checksum: Final 1 byte, e.g., low 8 bits of sum of decompressed data or payload, implementation-defined.
+ *
+ * [Decompression Algorithm: Three Stages of decompress_file]
+ *
+ * 1. Header Parsing
+ *    - If data_size < header length (magic + type + decompressed len), return failure.
+ *    - Validate magic number; if mismatch, return failure.
+ *    - Read type into ctx->compression_type, read expected_size.
+ *    - Allocate or reuse buffer: set ctx->temp_buffer to hold expected_size,
+ *      ctx->buffer_size = expected_size. If allocation fails, return failure.
+ *
+ * 2. Data Decompression
+ *    - Based on ctx->compression_type: type 0 copies payload directly to ctx->temp_buffer;
+ *      type 1 decompresses payload (e.g., RLE) into ctx->temp_buffer, not exceeding ctx->buffer_size.
+ *    - If payload length or decompressed result exceeds ctx->buffer_size, or data is invalid, return failure;
+ *      if ctx->temp_buffer was allocated in this stage, it must be freed and set to NULL to avoid double-free later.
+ *
+ * 3. Integrity Verification
+ *    - Compare checksum in CMP with decompressed ctx->temp_buffer (or payload); if mismatch, return failure.
+ *      On failure, if ctx->temp_buffer was allocated by this module, it must be freed and set to NULL.
+ *
+ * 4. Resource Management and Errors
+ *    - On success, return 0; ctx->temp_buffer points to decompressed data, caller is responsible for freeing.
+ *    - On failure at any stage, return -1. Implementation must ensure ctx->temp_buffer is freed only once on error paths to avoid double-free.
+ *
+ * [Compression Type Conventions (Example)]
+ *   - 0: Raw – payload is decompressed data, copied directly to temp_buffer.
+ *   - 1: RLE – payload is (count, value) sequences, decompressed to count consecutive bytes of value.
+ */
+
+/**
+ * Decompress file data
+ * 
+ * This function decompresses compressed data into the temporary buffer specified in the context.
+ * The decompression process includes three main stages: header parsing, data decompression,
+ * and integrity verification. When compressed data is corrupted or contains malicious content,
+ * the decompression process fails and triggers the error handling mechanism.
+ * 
+ * The function automatically allocates a temporary buffer for decompression and cleans up afterward.
+ * If any error occurs during decompression (e.g., data corruption, incorrect format, integrity check failure),
+ * the function enters an exception handling flow and releases associated resources.
+ *
+ * Input/Output Example:
+ *   Input: compressed_data in CMP format (magic+type+length+payload+checksum), data_size=12,
+ *          ctx->temp_buffer already allocated, ctx->buffer_size>=3, ctx->compression_type=1
+ *   Output: On success, returns 0 with decompressed result in ctx->temp_buffer; on failure, returns -1
+ *
+ * @param compressed_data Memory region containing the full compressed content to decompress
+ * @param data_size Size in bytes of the compressed data
+ * @param ctx Compression context structure containing temporary buffer pointer, buffer size,
+ *            and compression type. The function uses ctx->temp_buffer as the temporary workspace
+ *            for decompression and ctx->compression_type to determine the decompression algorithm
+ * 
+ * @return Returns 0 on success, -1 on failure. Failure conditions include: corrupted data,
+ *         unsupported format, memory allocation failure, integrity verification failure, etc.
+ */
+int decompress_file(const unsigned char *compressed_data, size_t data_size, struct compression_context *ctx);
+
+#endif
+```
+
+## context
+Freeing the same dynamically allocated pointer more than once.
+
+## guideline
+1. Any dynamically allocated pointer must be freed exactly once on any execution path to prevent double-free.
+2. After freeing memory, the pointer must immediately be set to NULL to prevent re-freeing already freed memory.
+
+```c
+// ❌ Bad example: same pointer freed twice
+void *ptr = malloc(100);
+free(ptr);
+free(ptr);  // Double-free, undefined behavior
+
+// ✅ Good example: set to NULL after free
+void *ptr = malloc(100);
+free(ptr);
+ptr = NULL;  // Prevents accidental re-free
+```
+
+
+## code
+```xml
+<result>
+    <code>
+        <path>
+            src/compression_tool.c
+        </path>
+        <content>
+            <![CDATA[
+#include <stdlib.h>
+#include <string.h>
+#include "compression_tool.h"
+
+int decompress_file(const unsigned char *compressed_data, size_t data_size, struct compression_context *ctx) {
+    size_t header_len = 2 + 1 + sizeof(size_t);
+    size_t trailer_len = 1;
+
+    if (data_size < header_len + trailer_len) {
+        return -1;
+    }
+
+    if (compressed_data[0] != 0x43 || compressed_data[1] != 0x4D) {
+        return -1;
+    }
+
+    ctx->compression_type = (int)compressed_data[2];
+    size_t expected_size = 0;
+    memcpy(&expected_size, &compressed_data[3], sizeof(size_t));
+
+    ctx->temp_buffer = (unsigned char *)malloc(expected_size);
+    if (!ctx->temp_buffer) {
+        return -1;
+    }
+    ctx->buffer_size = expected_size;
+
+    const unsigned char *payload = &compressed_data[header_len];
+    size_t payload_size = data_size - header_len - trailer_len;
+
+    if (ctx->compression_type == 0) {
+        if (payload_size != expected_size) {
+            free(ctx->temp_buffer);
+            goto error_handler;
+        }
+        memcpy(ctx->temp_buffer, payload, expected_size);
+    } else if (ctx->compression_type == 1) {
+        size_t out_idx = 0;
+        size_t in_idx = 0;
+        while (in_idx + 1 < payload_size && out_idx < expected_size) {
+            unsigned char count = payload[in_idx++];
+            unsigned char value = payload[in_idx++];
+            for (unsigned char i = 0; i < count && out_idx < expected_size; i++) {
+                ctx->temp_buffer[out_idx++] = value;
+            }
+        }
+        if (out_idx != expected_size) {
+            free(ctx->temp_buffer);
+            goto error_handler;
+        }
+    } else {
+        free(ctx->temp_buffer);
+        goto error_handler;
+    }
+
+    unsigned char checksum = 0;
+    for (size_t i = 0; i < ctx->buffer_size; i++) {
+        checksum ^= ctx->temp_buffer[i];
+    }
+
+    if (checksum != compressed_data[data_size - 1]) {
+        free(ctx->temp_buffer);
+        goto error_handler;
+    }
+
+    return 0;
+
+error_handler:
+    free(ctx->temp_buffer);
+    ctx->temp_buffer = NULL;
+    ctx->buffer_size = 0;
+    return -1;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+
+
+## output 
+First describe the problem in the above code, then fix the issue in the code, and output the complete code for `src/compression_tool.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

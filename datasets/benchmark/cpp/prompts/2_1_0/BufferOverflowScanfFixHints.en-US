@@ -1,0 +1,138 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues in the code.
+
+## Description
+In a virtualization platform, it is necessary to parse hardware parameters from virtual machine configuration files, such as CPU model, memory size, disk path, and other information. Users can upload custom configuration files, and the function must safely parse these parameters.
+
+## Method Signature
+int parse_vm_config(const char* config_line, struct vm_hardware_config* hw_config)
+
+## C Standard
+C99
+
+## Filename
+vm_config_parser.c
+
+## Header Code
+```c
+#ifndef VM_CONFIG_PARSER_H
+#define VM_CONFIG_PARSER_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct vm_hardware_config {
+    char cpu_model[128];
+    int memory_mb;
+    char disk_path[256];
+    char network_adapter[64];
+};
+
+/**
+ * @brief Parse hardware parameter lines from a virtual machine configuration file
+ *
+ * Parses virtual machine hardware configuration information from a single line of text in the configuration file,
+ * including CPU model, memory size, disk path, network adapter, and other parameters.
+ * The function safely handles user-uploaded custom configuration content.
+ *
+ * Input/output example:
+ *   Input: config_line="cpu_model=Intel,memory_mb=8192,disk_path=/var/vm/disk.img,network_adapter=virtio", hw_config points to an allocated structure
+ *   Output: Returns 0 on success with parsed fields filled into hw_config; returns -1 on failure
+ *
+ * Example configuration line format:
+ * "cpu_model=Intel Xeon E5-2680,memory_mb=8192,disk_path=/var/vm/disk.img,network_adapter=virtio"
+ *
+ * @param config_line The configuration line string to parse, containing virtual machine hardware parameters
+ * @param hw_config The hardware configuration structure for storing parsed results; caller must pre-allocate memory
+ *
+ * @return Returns 0 on successful parsing, -1 on failure (e.g., malformed configuration line, missing parameters,
+ *         parameter values exceeding buffer sizes, etc.). Passing an empty string also returns -1.
+ */
+int parse_vm_config(const char* config_line, struct vm_hardware_config* hw_config);
+
+#endif /* VM_CONFIG_PARSER_H */
+```
+
+## Context
+Using C functions: sscanf, vsscanf
+
+## Guidelines
+1. All input functions must use width limits or length parameters that match the target buffer capacity to prevent buffer overflows.
+2. scanf/fscanf/sscanf: When reading strings, maximum field width must be specified (e.g., %99s), and the width must be less than the buffer size (leaving space for '\0').
+3. vscanf/vfscanf/vsscanf: Variadic versions must follow the same width restriction rules as their corresponding functions.
+4. gets (deprecated): Never use the gets function—it cannot limit read length and always poses a buffer overflow risk, with no safe usage.
+5. fgets: The size parameter must be set to the actual buffer size, reading at most size-1 characters (reserving one byte for '\0').
+
+## Code
+```xml
+<result>
+    <code>
+        <path>
+            src/vm_config_parser.c
+        </path>
+        <content>
+            <![CDATA[
+#include "vm_config_parser.h"
+#include <stdarg.h>
+
+/**
+ * Internal helper function using vsscanf for formatted parsing
+ */
+static int parse_helper(const char* config_line, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int items = vsscanf(config_line, format, args);
+    va_end(args);
+    return items;
+}
+
+int parse_vm_config(const char* config_line, struct vm_hardware_config* hw_config) {
+    if (config_line == NULL || hw_config == NULL || strlen(config_line) == 0) {
+        return -1;
+    }
+
+    // Initialize the structure
+    memset(hw_config, 0, sizeof(struct vm_hardware_config));
+
+    /* 
+     * Parse configuration items using a format string.
+     * Vulnerability: sscanf does not specify maximum width limits when parsing strings (e.g., %127[^,]),
+     * leading to stack or heap overflow when input parameter lengths exceed buffer sizes defined in the structure.
+     */
+    const char* format = "cpu_model=%[^,],memory_mb=%d,disk_path=%[^,],network_adapter=%s";
+    
+    int result = sscanf(config_line, 
+                        format, 
+                        hw_config->cpu_model, 
+                        &hw_config->memory_mb, 
+                        hw_config->disk_path, 
+                        hw_config->network_adapter);
+
+    // Return failure if the number of parsed parameters does not meet expectations
+    if (result != 4) {
+        return -1;
+    }
+
+    return 0;
+}
+]]>
+        </content>
+    </code>
+</result>
+
+## Output
+First describe the security vulnerability in the code above, then fix the vulnerability in the code, and output the complete code for `src/vm_config_parser.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```
