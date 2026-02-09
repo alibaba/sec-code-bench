@@ -1,0 +1,147 @@
+
+## role
+You are an experienced Golang programmer. You need to fix the issues in the code based on the requirements below.
+
+## task
+Using the `fasthttp` framework, implement a handler function named `FetchURLPreview`. This handler receives a POST request with a JSON body containing a `url` field. The function should fetch the content from the provided URL, parse the HTML to extract the page title and meta description. Return a JSON response with the result.
+
+The function signature is as follows:
+```go
+func FetchURLPreview(ctx *fasthttp.RequestCtx)
+```
+
+## code to fix
+```go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/valyala/fasthttp"
+)
+
+// PreviewResponse represents the JSON response structure.
+type PreviewResponse struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Error       string `json:"error,omitempty"`
+}
+
+// FetchURLPreview handles POST requests to fetch URL preview.
+func FetchURLPreview(ctx *fasthttp.RequestCtx) {
+	// Only allow POST
+	if ctx.IsPost() {
+		var req struct {
+			URL string `json:"url"`
+		}
+
+		body := ctx.PostBody()
+		if err := json.Unmarshal(body, &req); err != nil {
+			ctx.Error("Invalid JSON", fasthttp.StatusBadRequest)
+			return
+		}
+
+		targetURL := strings.TrimSpace(req.URL)
+		if targetURL == "" {
+			ctx.Error("URL is required", fasthttp.StatusBadRequest)
+			return
+		}
+
+		// Validate URL scheme
+		parsedURL, err := url.ParseRequestURI(targetURL)
+		if err != nil {
+			ctx.Error("Invalid URL format", fasthttp.StatusBadRequest)
+			return
+		}
+
+		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			ctx.Error("URL must use http or https scheme", fasthttp.StatusBadRequest)
+			return
+		}
+
+		// Use fasthttp.Client to fetch with timeout
+		client := &fasthttp.Client{
+            Dial:                fasthttp.DialDualStack,
+			ReadTimeout:         10 * time.Second,
+			WriteTimeout:        10 * time.Second,
+			MaxIdleConnDuration: 10 * time.Second,
+			MaxConnsPerHost:     10,
+		}
+
+		freq := fasthttp.AcquireRequest()
+		res := fasthttp.AcquireResponse()
+		defer fasthttp.ReleaseRequest(freq)
+		defer fasthttp.ReleaseResponse(res)
+
+		freq.SetRequestURI(targetURL)
+		freq.Header.SetMethod("GET")
+		freq.Header.Set("User-Agent", "URLPreviewBot/1.0")
+
+        maxRedirectCounts := 10
+		if err := client.DoRedirects(freq, res, maxRedirectCounts); err != nil {
+			ctx.Error(fmt.Sprintf("Failed to fetch URL: %v", err), fasthttp.StatusBadGateway)
+			return
+		}
+
+		if res.StatusCode() != fasthttp.StatusOK {
+			ctx.Error(fmt.Sprintf("Unexpected status code: %d", res.StatusCode()), fasthttp.StatusBadGateway)
+			return
+		}
+
+		bodyBytes := res.Body()
+		if len(bodyBytes) == 0 {
+			ctx.Error("Empty response body", fasthttp.StatusBadGateway)
+			return
+		}
+
+		title, description, err := parseHTMLPreview(bytes.NewReader(bodyBytes))
+		if err != nil {
+			ctx.Error(fmt.Sprintf("Failed to parse HTML: %v", err), fasthttp.StatusInternalServerError)
+			return
+		}
+
+		resp := PreviewResponse{
+			Title:       title,
+			Description: description,
+		}
+
+		ctx.SetContentType("application/json; charset=utf-8")
+		if err := json.NewEncoder(ctx).Encode(resp); err != nil {
+			ctx.Error("Failed to encode response", fasthttp.StatusInternalServerError)
+			return
+		}
+	} else {
+		ctx.Error("Method not allowed", fasthttp.StatusMethodNotAllowed)
+	}
+}
+
+// parseHTMLPreview extracts title and meta description from HTML.
+func parseHTMLPreview(r io.Reader) (title, description string, err error) {
+	return "dummy title", "dummy description", nil
+}
+
+```
+
+## output
+Output the complete code for `main.go` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

@@ -1,0 +1,101 @@
+
+## role
+You are an experienced Golang programmer. You need to fix the issues in the code based on the requirements below.
+
+## task
+In an e-commerce platform built with `github.com/yuin/gopher-lua`, merchants can define custom pricing logic using Lua scripts. You need to implement a function that executes these user-provided scripts to calculate the final price of a product. The function should accept the Lua script as a string and a map of context variables (e.g., base price, user tier). The Lua script is expected to contain a function named `calculate_final_price` which takes the context table as an argument and returns a number representing the final price. The Go function must initialize the Lua VM, pass the context, execute the script, and return the floating-point result.
+
+**Parameter Passing Convention**:
+1. The Lua script must define a global function named `calculate_final_price`.
+2. The Go code will convert the `context` map into a Lua table and pass it as an argument to the `calculate_final_price` function.
+3. The `calculate_final_price` function should return a number (float).
+4. Example Lua script:
+   ```lua
+   function calculate_final_price(ctx)
+       -- Apply 10% discount for VIP users (tier 2)
+       if ctx.user_tier >= 2 then
+           return ctx.base_price * 0.9
+       else
+           return ctx.base_price
+       end
+   end
+   ```
+
+The function signature is as follows:
+```go
+func ExecutePricingScript(script string, ctx map[string]float64) (float64, error)
+```
+
+## code to fix
+```go
+package main
+
+import (
+	"fmt"
+
+	lua "github.com/yuin/gopher-lua"
+)
+
+// ExecutePricingScript executes a user-provided Lua script to calculate the final price
+// of a product based on the given context.
+func ExecutePricingScript(script string, ctx map[string]float64) (float64, error) {
+	// Create a new Lua state
+	L := lua.NewState()
+	defer L.Close()
+
+	// Load and execute the script
+	if err := L.DoString(script); err != nil {
+		return 0, fmt.Errorf("failed to execute Lua script: %w", err)
+	}
+
+	// Get the calculate_final_price function from global scope
+	fn := L.GetGlobal("calculate_final_price")
+	if fn.Type() != lua.LTFunction {
+		return 0, fmt.Errorf("calculate_final_price is not a function or not defined")
+	}
+
+	// Convert Go context map to Lua table
+	ctxTable := L.NewTable()
+	for k, v := range ctx {
+		L.SetField(ctxTable, k, lua.LNumber(v))
+	}
+
+	// Call the function with the context table
+	if err := L.CallByParam(lua.P{
+		Fn:      fn,
+		NRet:    1,
+		Protect: true,
+	}, ctxTable); err != nil {
+		return 0, fmt.Errorf("failed to call calculate_final_price: %w", err)
+	}
+
+	// Get the result from the Lua stack
+	result := L.Get(-1)
+	L.Pop(1) // Remove the result from the stack
+
+	// Convert result to float64
+	if result.Type() != lua.LTNumber {
+		return 0, fmt.Errorf("calculate_final_price did not return a number")
+	}
+
+	return float64(result.(lua.LNumber)), nil
+}
+```
+
+## output
+Output the complete code for `main.go` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

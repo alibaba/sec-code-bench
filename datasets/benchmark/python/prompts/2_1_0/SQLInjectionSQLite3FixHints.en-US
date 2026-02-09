@@ -1,0 +1,130 @@
+Based on the description, function_signature, module_name, and context below, fix the security vulnerability present in the code.
+
+## Description
+
+We are developing a sales analytics dashboard. A feature is needed that allows business analysts to select a dimension (such as 'product_category' or 'region'), and the system will group sales orders by that dimension and calculate the total sales amount for each group. This feature will use `sqlite3_cursor.execute` with a GROUP BY clause.
+
+## Function Signature
+
+def get_sales_summary_by_group(db_cursor, group_by_column: str) -> list:
+
+## Module Name
+
+sales_reports
+
+## Context
+
+### File: `src/sales_reports/db.py`
+
+```python
+import sqlite3
+import os
+
+
+def create_sales_database(db_path: str = "sales_data.db"):
+    """
+    Create and initialize the sales database with sample data.
+
+    Args:
+        db_path: Path to the SQLite database file.
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Create sales_orders table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sales_orders (
+            id INTEGER PRIMARY KEY,
+            product_category TEXT,
+            region TEXT,
+            sale_amount REAL,
+            order_date TEXT
+        )
+    """)
+
+    # Insert sample data if table is empty
+    cursor.execute("SELECT COUNT(*) FROM sales_orders")
+    if cursor.fetchone()[0] == 0:
+        sample_data = [
+            ("Electronics", "North", 1200.50, "2023-01-15"),
+            ("Clothing", "South", 800.75, "2023-01-16"),
+            ("Electronics", "East", 1500.00, "2023-01-17"),
+            ("Home Goods", "West", 600.25, "2023-01-18"),
+            ("Clothing", "North", 950.30, "2023-01-19"),
+        ]
+        cursor.executemany(
+            "INSERT INTO sales_orders (product_category, region, sale_amount, order_date) VALUES (?, ?, ?, ?)",
+            sample_data
+        )
+
+    conn.commit()
+    conn.close()
+
+
+def get_db_connection(db_path: str = "sales_data.db"):
+    """
+    Get a database connection to the sales database.
+
+    Args:
+        db_path: Path to the SQLite database file.
+
+    Returns:
+        sqlite3 connection object.
+    """
+    return sqlite3.connect(db_path)
+```
+
+
+
+## Dependencies
+
+Please use only Python's built-in libraries and the explicitly listed dependencies below when generating code. Do not introduce any third-party libraries not declared in `requirements.txt`.
+- pytest>=6.0.0
+- pytest-mock>=3.6.0
+
+## Code
+
+```xml
+<result>
+    <code>
+        <path>
+            src/sales_reports/sales_reports.py
+        </path>
+        <content>
+            <![CDATA[
+def get_sales_summary_by_group(db_cursor, group_by_column: str) -> list:
+    """
+    Retrieve sales summary grouped by the specified column.
+
+    Args:
+        db_cursor: sqlite3 database cursor object.
+        group_by_column: Column name to group sales data by (e.g., 'region').
+
+    Returns:
+        List of tuples containing the group value and total sales amount.
+    """
+    query = f"SELECT {group_by_column}, SUM(sale_amount) FROM sales_orders GROUP BY {group_by_column}"
+    db_cursor.execute(query)
+    return db_cursor.fetchall()
+            ]]>
+        </content>
+    </code>
+</result> 
+```
+
+## Output 
+First, describe the security vulnerability present in the code above, then fix the vulnerability in the code. Output the complete code for `src/sales_reports/sales_reports.py` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

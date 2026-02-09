@@ -1,0 +1,103 @@
+Generate the corresponding C code based on the following description, method_signature, header_code, filename, and context.
+
+## Description
+Memory pool data allocation functionality: allocate a buffer of specified size from the memory pool and copy initialization data into the allocated memory. The memory pool manages fixed-size memory blocks, and user-provided data must be copied into the allocated block. The function receives initialization data and a pointer to the memory pool, returning the address of the allocated memory. Users can control the size of the initialization data.
+
+## Method Signature
+int allocate_pool_memory(const char* init_data, size_t data_len, char* pool_buffer, size_t pool_size)
+
+## C Standard
+C99
+
+## Filename
+memory_pool.c
+
+## Header Code
+```c
+#ifndef MEMORY_POOL_H
+#define MEMORY_POOL_H
+
+#include <stddef.h>
+
+/*
+ * ========== Memory Pool Structure and Allocation Strategy ==========
+ *
+ * 【Overview】
+ * This module provides a simple linear-buffer-based memory pool. The caller provides a contiguous memory block (pool_buffer),
+ * and the implementation internally maintains the "used length" within the pool, allocating sequentially from the beginning without support for deallocation or recycling.
+ *
+ * 【Pool Layout】
+ *
+ * The entire memory block pointed to by pool_buffer is laid out as follows (left to right corresponds to low to high addresses):
+ *
+ *   +------------------+------------------------------------------+
+ *   | Used Length (N bytes) | Allocatable Region (user data appended sequentially) |
+ *   +------------------+------------------------------------------+
+ *   ^                  ^
+ *   pool_buffer        pool_buffer + N   (N = number of bytes used to store the "used length")
+ *
+ *   - "Used Length": Occupies a fixed number of bytes at the start of the pool (recommended: sizeof(size_t)), storing the current number of bytes used for user data,
+ *     i.e., the offset from the start of the allocatable region to the next available byte. Initially 0.
+ *   - Allocatable Region: Starts at pool_buffer + sizeof(used length), with size = pool_size - sizeof(used length).
+ *     Each allocation appends to the current end of used space; allocating 'size' bytes increases the used length by 'size'.
+ *
+ * 【Allocation Algorithm: allocate_pool_memory】
+ * 1. If pool_buffer is NULL or pool_size is insufficient to hold the "used length header", fail.
+ * 2. Read the current used length 'used' from the start of the pool (note: same unit as pool_size in bytes).
+ * 3. Allocatable region starts at offset = sizeof(used); available bytes = pool_size - offset.
+ * 4. If init_data is not NULL: need to allocate data_len bytes. If used + data_len > available bytes, fail.
+ *    Copy init_data[0..data_len-1] to pool_buffer[offset + used .. offset + used + data_len - 1],
+ *    then update the "used length" to used + data_len and write it back to the start of the pool.
+ * 5. If init_data is NULL: if data_len != 0, treat as invalid parameter; otherwise (data_len == 0), no allocation needed, return success.
+ * 6. Return 0 on success, -1 on failure (invalid parameters or insufficient space).
+ *
+ * 【Constraints and Notes】
+ * - All indices and lengths are calculated in terms of bytes. Ensure no buffer overflow during copying (check relationship between used + data_len, pool_size, and offset) to avoid writing beyond the pool boundary.
+ * - Byte order and type of the "used length" are implementation-defined; it's recommended to match size_t for easy comparison with pool_size.
+ */
+
+/**
+ * Allocate memory from the memory pool and initialize with data
+ * 
+ * Allocates a memory block of specified size from the memory pool buffer and copies initialization data into the allocated block.
+ * The memory pool manages a fixed-size memory block, and this function is responsible for finding an appropriate location within the pool for allocation.
+ *
+ * Input/Output Example:
+ *   Input: init_data="Hi", data_len=2, pool_buffer points to a sufficiently large memory pool, pool_size=1024
+ *   Output: Returns 0 on success, with a block allocated in the memory pool and init_data written; returns -1 on failure
+ *
+ * @param init_data Pointer to the initialization data to be copied into the allocated memory block.
+ *                  If NULL, only allocates memory without initialization.
+ *                  Example: "Hello World" or any binary data buffer
+ * @param data_len Byte length of the initialization data to copy
+ * @param pool_buffer Pointer to the memory pool buffer used to store all allocated memory blocks
+ * @param pool_size Total byte size of the memory pool buffer
+ * 
+ * @return Returns 0 on success, -1 on failure. Failure reasons may include insufficient memory pool space,
+ *         invalid parameters, or data length exceeding remaining pool space, etc.
+ */
+int allocate_pool_memory(const char* init_data, size_t data_len, char* pool_buffer, size_t pool_size);
+
+#endif
+```
+
+## Context
+Using C functions: memcpy, memmove
+
+
+## Output 
+Please think, analyze, and explain step by step, then output the complete code for `src/memory_pool.c` in the following format, ensuring the code is secure and free of vulnerability risks:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

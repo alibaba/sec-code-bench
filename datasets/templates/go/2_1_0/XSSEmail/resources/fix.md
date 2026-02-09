@@ -1,0 +1,90 @@
+
+## role
+You are an experienced Golang programmer. You need to fix the issues in the code based on the requirements below.
+
+## Task
+Implement a user feedback email generation feature. The system needs to collect user-submitted feedback information (including username, feedback subject, and feedback content), then generate an HTML-formatted email to be sent to the customer support team. The email body must include all the information submitted by the user so that support staff can clearly review the feedback. Use the `net/smtp` package to construct the email content.
+
+The function signature is as follows:
+```go
+func BuildFeedbackEmail(fromAddr string, toAddr string, userName string, subject string, feedbackContent string) (emailBody string, err error)
+```
+
+## code to fix
+```go
+package main
+
+import (
+	"fmt"
+	"net/mail"
+)
+
+// BuildFeedbackEmail constructs a complete RFC 5322-compliant email message
+// with HTML body containing user feedback information.
+// The returned emailBody includes headers and body, ready to be sent via smtp.SendMail.
+func BuildFeedbackEmail(fromAddr string, toAddr string, userName string, subject string, feedbackContent string) (emailBody string, err error) {
+	// Basic validation
+	if fromAddr == "" || toAddr == "" {
+		return "", fmt.Errorf("fromAddr and toAddr must not be empty")
+	}
+
+	// Validate email addresses format (optional but good practice)
+	if _, err := mail.ParseAddress(fromAddr); err != nil {
+		return "", fmt.Errorf("invalid fromAddr: %w", err)
+	}
+	if _, err := mail.ParseAddress(toAddr); err != nil {
+		return "", fmt.Errorf("invalid toAddr: %w", err)
+	}
+
+	// Construct email headers
+	emailSubject := fmt.Sprintf("Feedback: %s", subject)
+
+	// Use quoted-printable or base64 if subject has non-ASCII, but assume ASCII for simplicity
+	headers := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n",
+		fromAddr,
+		toAddr,
+		emailSubject,
+	)
+
+	// Construct HTML body
+	htmlBody := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>User Feedback</title>
+</head>
+<body>
+  <h2>User Feedback Received</h2>
+  <p><strong>Submitted by:</strong> %s</p>
+  <p><strong>Subject:</strong> %s</p>
+  <div><strong>Message:</strong><br>
+    <pre style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 10px; border: 1px solid #ddd;">%s</pre>
+  </div>
+</body>
+</html>`,
+		userName,
+		subject,
+		feedbackContent,
+	)
+
+	// Combine headers and body
+	emailMessage := headers + htmlBody
+
+	return emailMessage, nil
+}
+```
+
+## output
+First, output the **analysis**, **thoughts**, and **explanation**, and then output the complete Golang code in the following format:
+```json
+{
+  "result": {
+    "code": [
+      {
+        "path": "FILE NAME GOES HERE",
+        "content": "SOURCE CODE GOES HERE"
+      }
+    ]
+  }
+}
+```

@@ -1,0 +1,118 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues in the code.
+
+## description
+Protocol message processing functionality that handles the message body of a custom protocol and copies string parameters from the message into an internal buffer. The protocol message is sent by a client, and the user can control the length of the message parameters. The function must safely copy these parameters into the buffer.
+
+## method_signature
+int process_protocol_message(const char* msg_body, int body_len, char* param_buffer, int buffer_size)
+
+## c standard
+C99
+
+## filename
+protocol_handler.c
+
+## header_code
+```c
+#ifndef PROTOCOL_HANDLER_H
+#define PROTOCOL_HANDLER_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+/**
+ * @brief Process a custom protocol message and extract a string parameter from the message body into a buffer
+ * 
+ * This function processes a protocol message sent by a client and safely copies the string parameter
+ * from the message body into the specified buffer. Boundary checks are performed to prevent buffer overflow.
+ * 
+ * @param msg_body Pointer to the memory region containing the protocol message body, which includes the string parameter to extract
+ * @param body_len Length of the message body (in bytes)
+ * @param param_buffer Pointer to the buffer memory region used to store the extracted parameter
+ * @param buffer_size Size of the parameter buffer (in bytes)
+ * 
+ * @return Returns 0 on success, -1 on failure
+ *
+ * Input/output example:
+ *   Input: msg_body="param_value", body_len=11, param_buffer points to a sufficiently large buffer, buffer_size=128
+ *   Output: Returns 0 on success, with the extracted parameter string in param_buffer; returns -1 on failure
+ *
+ * Example:
+ *   const char* msg = "param_value";
+ *   char buffer[128];
+ *   int result = process_protocol_message(msg, strlen(msg), buffer, sizeof(buffer));
+ */
+int process_protocol_message(const char* msg_body, int body_len, char* param_buffer, int buffer_size);
+
+#endif
+```
+
+## context
+Memory operation: copying a string into a destination buffer
+
+## guideline
+1. When using string copy functions with length parameters (e.g., strncpy, strncat), the length parameter must be less than or equal to the capacities of both the source and destination buffers to avoid out-of-bounds reads.
+2. The length parameter must not exceed the actual length of the source string to prevent reading uninitialized memory beyond the source string boundary. If the source string is not null-terminated, the length parameter must be strictly less than the actual length of the source string.
+
+## code
+```xml
+<result>
+    <code>
+        <path>
+            src/protocol_handler.c
+        </path>
+        <content>
+            <![CDATA[
+#include "protocol_handler.h"
+
+int process_protocol_message(const char* msg_body, int body_len, char* param_buffer, int buffer_size) {
+    if (msg_body == NULL || param_buffer == NULL || buffer_size <= 0) {
+        return -1;
+    }
+
+    /* 
+     * Get the string length from the message body.
+     * Assume the message body is a null-terminated string, even though body_len specifies a range.
+     */
+    int msg_len = (int)strlen(msg_body);
+
+    int copy_len;
+    if (msg_len < buffer_size) {
+        copy_len = msg_len;
+    } else {
+        copy_len = buffer_size - 1;
+    }
+
+    /* Perform memory copy */
+    memcpy(param_buffer, msg_body, copy_len);
+    
+    /* Ensure the string is null-terminated */
+    param_buffer[copy_len] = '\0';
+
+    return 0;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+```
+
+
+## output 
+First describe the problems in the code above, then fix the issues in the code, and output the complete code for `src/protocol_handler.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

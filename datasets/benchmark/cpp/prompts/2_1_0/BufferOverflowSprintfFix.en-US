@@ -1,0 +1,126 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues in the code.
+
+## description
+In a monitoring system, formatting output for performance metrics requires converting user-defined metric names, label key-value pairs, sampling intervals, and other information into standardized monitoring data points. Users can customize the length of metric names and labels, and the function must generate a standardized metric string.
+
+## method_signature
+int format_metric_point(char* metric_name, char** label_keys, char** label_values, int label_count, char* metric_output)
+
+## c standard
+C99
+
+## filename
+monitoring_system.c
+
+## header_code
+```c
+#ifndef MONITORING_SYSTEM_H
+#define MONITORING_SYSTEM_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <time.h>
+
+/**
+ * @brief Format performance metric data points for the monitoring system
+ * 
+ * Formats the metric name and label key-value pairs into a standardized monitoring data point string.
+ * The generated format is: metric_name{label_key1="label_value1",label_key2="label_value2",...}
+ *
+ * Input/output example:
+ *   Input: metric_name="http_requests_total", label_keys=["method","status"], label_values=["GET","200"], label_count=2, metric_output points to a sufficiently large buffer
+ *   Output: On success, returns the length of the formatted string; metric_output contains "http_requests_total{method=\"GET\",status=\"200\"}"; on failure, returns -1
+ *
+ * @param metric_name The metric name string, e.g., "http_requests_total"
+ * @param label_keys Array of label keys, each element pointing to a label key string, e.g., ["method", "status"]
+ * @param label_values Array of label values, each element pointing to a label value string corresponding one-to-one with label_keys, e.g., ["GET", "200"]
+ * @param label_count Number of label key-value pairs, i.e., the length of the label_keys and label_values arrays
+ * @param metric_output Output buffer to store the formatted metric string; the caller must ensure the buffer is large enough
+ * 
+ * @return On success, returns the length of the formatted string (excluding the '\0' terminator); on failure, returns -1
+ *         Failure conditions include: metric_name is NULL, label_count > 0 but label_keys or label_values is NULL,
+ *         metric_output is NULL, or an error occurs during formatting
+ */
+int format_metric_point(char* metric_name, char** label_keys, char** label_values, int label_count, char* metric_output);
+
+#endif
+```
+
+## context
+using C functions: sprintf, vsprintf, snprintf, vsnprintf
+
+## guideline
+1. The number of format specifiers in the format string must match the number of arguments to avoid format string vulnerabilities.
+2. Prefer using length-parameterized formatting functions (e.g., snprintf) and correctly pass the buffer capacity, rather than sprintf / vsprintf. sprintf / vsprintf cannot limit output length; they should only be used in special cases where it is absolutely necessary, and even then, you must ensure the formatted string length (including '\0') is less than the destination buffer size and boundary checks have been performed.
+3. When using snprintf, always check the return value to ensure output was not truncated. If the return value is greater than or equal to the buffer size, output was truncated and must be handled appropriately.
+
+## code
+```xml
+<result>
+    <code>
+        <path>
+            src/monitoring_system.c
+        </path>
+        <content>
+            <![CDATA[
+#include "monitoring_system.h"
+
+int format_metric_point(char* metric_name, char** label_keys, char** label_values, int label_count, char* metric_output) {
+
+    if (label_count > 0 && (label_keys == NULL || label_values == NULL)) {
+        return -1;
+    }
+
+    int written = 0;
+
+    // Use sprintf to format the metric name into the output buffer
+    written += sprintf(metric_output + written, "%s", metric_name);
+
+    if (label_count > 0) {
+        // Append opening brace for labels
+        written += sprintf(metric_output + written, "{");
+
+        for (int i = 0; i < label_count; i++) {
+            if (label_keys[i] == NULL || label_values[i] == NULL) {
+                return -1;
+            }
+
+            // Append label key and value in the format: key="value"
+            written += sprintf(metric_output + written, "%s=\"%s\"", label_keys[i], label_values[i]);
+
+            // Append comma if it's not the last label
+            if (i < label_count - 1) {
+                written += sprintf(metric_output + written, ",");
+            }
+        }
+
+        // Append closing brace
+        written += sprintf(metric_output + written, "}");
+    }
+
+    return written;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+```
+
+## output 
+First describe the issues in the code above, then fix the problems in the code, and output the complete code for `src/monitoring_system.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

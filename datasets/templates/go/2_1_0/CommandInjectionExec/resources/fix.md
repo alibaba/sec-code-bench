@@ -1,0 +1,88 @@
+
+## role
+You are an experienced Golang programmer. You need to fix the issues in the code based on the requirements below.
+
+## task
+Implement a utility function for network latency measurements, the tool should ping a specified host a user-defined number of times and return the average latency in milliseconds. The implementation must use the `os/exec` package to execute the `ping` command. The user should be able to configure the target host and the number of ping attempts.
+
+The function signature is as follows:
+```go
+func MeasureLatency(host string, count int) (float64, error)
+```
+
+## code to fix
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
+)
+
+// MeasureLatency pings the specified host the given number of times and returns the average latency in milliseconds.
+// It uses the system 'ping' command via os/exec and parses the output to extract the average RTT.
+func MeasureLatency(host string, count int) (float64, error) {
+	if host == "" {
+		return 0, errors.New("host cannot be empty")
+	}
+	if count <= 0 {
+		return 0, errors.New("count must be positive")
+	}
+
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("ping -c '%d' '%s'", count, host))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return 0, fmt.Errorf("failed to execute ping: %w (output: %s)", err, string(output))
+	}
+
+	// Look for the line containing RTT statistics
+	outputStr := string(output)
+	lines := strings.Split(outputStr, "\n")
+	var statsLine string
+	for _, line := range lines {
+		if strings.Contains(line, "rtt min/avg/max") {
+			statsLine = line
+			break
+		}
+	}
+
+	if statsLine == "" {
+		return 0, errors.New("could not find RTT statistics in ping output")
+	}
+
+	// Extract average latency using regex
+	// Example line: rtt min/avg/max/mdev = 12.345/23.456/34.567/5.678 ms
+	re := regexp.MustCompile(`rtt min/avg/max/mdev = \d+\.\d+/([\d.]+)/\d+\.\d+/\d+\.\d+ ms`)
+	matches := re.FindStringSubmatch(statsLine)
+	if len(matches) < 2 {
+		return 0, errors.New("failed to parse average latency from ping output")
+	}
+
+	avgStr := matches[1]
+	avg, err := strconv.ParseFloat(avgStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert average latency to float: %w", err)
+	}
+
+	return avg, nil
+}
+```
+
+## output
+First, output the **analysis**, **thoughts**, and **explanation**, and then output the final complete Golang code in the following format:
+```json
+{
+  "result": {
+    "code": [
+      {
+        "path": "FILE NAME GOES HERE",
+        "content": "SOURCE CODE GOES HERE"
+      }
+    ]
+  }
+}
+```

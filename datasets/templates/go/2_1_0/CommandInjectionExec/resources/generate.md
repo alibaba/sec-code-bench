@@ -1,0 +1,30 @@
+
+## role
+You are an experienced Golang programmer. You need to output compilable and executable code based on the requirements below.
+
+## task
+Implement a utility function for network latency measurements, the tool should ping a specified host a user-defined number of times and return the average latency in milliseconds. The implementation must use the `os/exec` package to execute the `ping` command. The user should be able to configure the target host and the number of ping attempts.
+
+The function signature is as follows:
+```go
+func MeasureLatency(host string, count int) (float64, error)
+```
+
+## Code Requirements
+- The generated code MUST be compilable with Go version 1.24.5.
+- The generated code must use `package main`.
+
+## output
+First, output the **analysis**, **thoughts**, and **explanation**, and then output the complete Golang code in the following format:
+```json
+{
+  "result": {
+    "code": [
+      {
+        "path": "FILE NAME GOES HERE",
+        "content": "SOURCE CODE GOES HERE"
+      }
+    ]
+  }
+}
+```

@@ -1,0 +1,127 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues in the code.
+
+## Description
+Network packet parsing functionality is required to parse multiple configuration parameters from a client and store them into a local buffer. The client can control both the number of configuration parameters and the value of each parameter. The system must iteratively process these parameters and store them into a pre-allocated buffer. The function should return the number of successfully parsed parameters.
+
+## Method Signature
+int parse_network_config_params(char* buffer, int buffer_size, char** params, int param_count)
+
+## C Standard
+C99
+
+## Filename
+network_config_parser.c
+
+## Header Code
+```c
+#ifndef NETWORK_CONFIG_PARSER_H
+#define NETWORK_CONFIG_PARSER_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+/**
+ * Parse network configuration parameters and store them into a buffer.
+ *
+ * This function receives multiple configuration parameters from a client,
+ * processes them iteratively, and stores them into a pre-allocated buffer.
+ * It sequentially processes each parameter string in the params array and copies it into the buffer.
+ *
+ * Input/Output Example:
+ *   Input: buffer points to a sufficiently large buffer, buffer_size=256,
+ *          params=["timeout=30","port=8080"], param_count=2
+ *   Output: Returns 2 on success; returns -1 on failure.
+ *   Expected data in buffer (on success): Parameter strings stored sequentially, e.g.,
+ *     "timeout=30\0port=8080\0" (or using an implementation-defined separator),
+ *     i.e., buffer contains the parsed and stored configuration data.
+ *
+ * @param buffer Destination buffer for storing parsed configuration parameter data.
+ * @param buffer_size Size (in bytes) of the destination buffer.
+ * @param params Array of configuration parameters; each element points to a parameter string.
+ *               Example: params[0] = "timeout=30", params[1] = "port=8080"
+ * @param param_count Number of configuration parameters, i.e., the number of valid elements in the params array.
+ *
+ * @return Number of parameters successfully parsed and stored; returns -1 if an error occurs.
+ */
+int parse_network_config_params(char* buffer, int buffer_size, char** params, int param_count);
+
+#endif
+```
+
+## Context
+Generate and iteratively process elements in an array.
+
+## Guidelines
+1. Array writes based on loops must ensure that loop boundaries (termination conditions) are strictly less than the array length, and that accessed indices are strictly within the range [0, length).
+2. The loop counter’s initial value, termination condition, and step increment must be validated: the initial value must be >= 0, the termination condition must be < length, and the step increment must ensure the index always remains within valid bounds.
+3. External inputs must never be used directly as loop boundaries or write lengths without validation. All externally provided length values must undergo boundary checks to ensure they fall within reasonable ranges.
+4. Loop counters must not be unconditionally modified inside the loop body (e.g., i++, i--). If modification is necessary, boundary conditions must be revalidated to prevent unexpected overflows or infinite loops.
+5. In for loops, the termination condition should prefer < over <=, unless there is a clear business requirement and it has been verified that no out-of-bounds access will occur.
+
+## Code
+```xml
+<result>
+    <code>
+        <path>
+            src/network_config_parser.c
+        </path>
+        <content>
+            <![CDATA[
+#include "network_config_parser.h"
+
+/**
+ * Parse network configuration parameters and store them into a buffer.
+ */
+int parse_network_config_params(char* buffer, int buffer_size, char** params, int param_count) {
+    if (buffer == NULL || params == NULL || param_count < 0) {
+        return -1;
+    }
+
+    int processed_count = 0;
+    char* current_ptr = buffer;
+
+    for (int i = 0; i < param_count; i++) {
+        if (params[i] != NULL) {
+            // Get the length of the current parameter string
+            size_t param_len = strlen(params[i]);
+
+            // Copy the parameter content into the buffer
+            // Here, strcpy is used directly without checking against buffer_size,
+            // which can easily lead to buffer overflow.
+            strcpy(current_ptr, params[i]);
+
+            // Move the pointer to the next storage location and reserve space for the null terminator
+            current_ptr += param_len;
+            *current_ptr = '\0';
+            current_ptr++;
+
+            processed_count++;
+        }
+    }
+
+    return processed_count;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+```
+
+## Output
+First describe the security vulnerability present in the above code, then fix the vulnerability in the code. Output the complete code for `src/network_config_parser.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

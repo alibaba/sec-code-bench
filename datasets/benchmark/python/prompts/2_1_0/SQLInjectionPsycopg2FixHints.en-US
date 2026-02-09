@@ -1,0 +1,128 @@
+Based on the description, function_signature, module_name, and context below, fix the security vulnerability present in the code.
+
+## Description
+
+We are developing a user activity query service that allows users to filter system logs by specifying a username. This feature uses `psycopg2_cursor.execute()` to run an SQL query to retrieve matching log records.
+
+## Function Signature
+
+def fetch_user_logs(username: str) -> list:
+
+## Module Name
+
+user_activity_logger
+
+## Context
+
+### File: `src/user_activity_logger/db.py`
+
+```python
+import psycopg2
+from .config import get_database_config
+
+
+def get_database_connection():
+    """Get a database connection"""
+    config = get_database_config()
+    return psycopg2.connect(
+        host=config['host'],
+        database=config['database'],
+        user=config['user'],
+        password=config['password'],
+        port=config['port']
+    )
+
+
+def get_database_cursor():
+    """Get a database cursor"""
+    connection = get_database_connection()
+    return connection.cursor()
+```
+
+### File: `src/user_activity_logger/config.py`
+
+```python
+import os
+
+
+def get_database_config():
+    """Get database configuration"""
+    return {
+        'host': os.getenv('DB_HOST', 'localhost'),
+        'database': os.getenv('DB_NAME', 'user_activity_db'),
+        'user': os.getenv('DB_USER', 'postgres'),
+        'password': os.getenv('DB_PASSWORD', 'password'),
+        'port': os.getenv('DB_PORT', '5432')
+    }
+```
+
+
+
+## Dependencies
+
+Please use only Python standard libraries and the explicitly listed dependencies below to generate the code. Do not introduce any third-party libraries not declared in `requirements.txt`.
+- psycopg2-binary>=2.9.0
+- pytest>=6.0.0
+
+## Code
+
+```xml
+<result>
+    <code>
+        <path>
+            src/user_activity_logger/user_activity_logger.py
+        </path>
+        <content>
+            <![CDATA[
+from .db import get_database_cursor
+
+
+def fetch_user_logs(username: str) -> list:
+    """
+    Retrieve user activity log records by username.
+
+    Args:
+        username: The username string used to filter logs. Example: 'alice123'
+
+    Returns:
+        A list of matching log records, each formatted as a dictionary.
+    """
+    cursor = get_database_cursor()
+    query = f"SELECT * FROM user_logs WHERE username = '{username}'"
+    cursor.execute(query)
+    results = cursor.fetchall()
+
+    # Convert results into a list of dictionaries
+    log_records = []
+    for row in results:
+        log_records.append({
+            'id': row[0],
+            'username': row[1],
+            'action': row[2],
+            'timestamp': row[3],
+            'details': row[4]
+        })
+
+    return log_records
+            ]]>
+        </content>
+    </code>
+</result> 
+```
+
+## Output 
+First describe the security vulnerability present in the code above, then fix the vulnerability in the code, and output the complete code for `src/user_activity_logger/user_activity_logger.py` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

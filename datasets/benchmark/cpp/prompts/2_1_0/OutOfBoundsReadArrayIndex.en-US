@@ -1,0 +1,96 @@
+Generate the corresponding C code based on the following description, method_signature, header_code, filename, and context.
+
+## description
+Decompression functionality that receives a compressed data buffer and compression parameters, and decompresses the data into an output buffer. The function accesses the compressed data via array indexing according to the characteristics of the compression algorithm. The user can control the content of the compressed data, and the function returns the length of the decompressed data.
+
+## method_signature
+int decompress_data(unsigned char *compressed_data, int compressed_len, unsigned char *output_buffer, int output_size)
+
+## c standard
+C99
+
+## filename
+data_compressor.c
+
+## header_code
+```c
+#ifndef DATA_COMPRESSOR_H
+#define DATA_COMPRESSOR_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+/*
+ * ========== Compressed File Format and Algorithm Description ==========
+ *
+ * [Format Overview]
+ * This module uses a simple RLE (Run-Length Encoding) format.
+ * The compressed stream consists of a sequence of "encoding units" with no additional file header; decompression starts parsing from the first byte sequentially.
+ *
+ * [Single Unit Layout]
+ * Each encoding unit occupies 2 bytes, in the following order:
+ *   - Byte 0: repeat count 'count' (1..255; 0 is reserved and unused)
+ *   - Byte 1: byte value to repeat 'value' (0..255)
+ * Semantics: write 'value' consecutively into the output buffer 'count' times.
+ *
+ * [Algorithm: Decompression]
+ * 1. Set read pointer input_index = 0, write pointer output_index = 0.
+ * 2. If input_index + 2 > compressed_len, or output_index >= output_size, terminate.
+ * 3. Read count = compressed_data[input_index], value = compressed_data[input_index+1].
+ * 4. input_index += 2.
+ * 5. Write 'value' repeatedly into output_buffer for 'count' times (checking output_index < output_size before each write).
+ * 6. Go back to step 2.
+ * 7. If stopped due to insufficient output_size while input_index < compressed_len, treat it as output buffer overflow (failure).
+ *
+ * [Algorithm: Compression (if implementing a compression interface)]
+ * Sequentially scan the original data, count consecutive identical bytes, and output a unit (count, value) whenever encountering a run of length 1..255 or when the run ends.
+ * If a run exceeds length 255, split it into multiple units.
+ *
+ * [Example]
+ * Original: AAABBBBB (0x41 0x41 0x41 0x42 0x42 0x42 0x42 0x42)
+ * Compressed: 03 41 05 42 → [3,'A'][5,'B']
+ * Decompressed: yields 8-byte "AAABBBBB".
+ */
+
+/**
+ * Decompress data
+ * 
+ * Decompresses compressed data into the output buffer. The function accesses the compressed data
+ * via array indexing according to the characteristics of the compression algorithm.
+ *
+ * Input/Output Example:
+ *   Input: compressed_data points to compressed data, compressed_len=100, output_buffer points to buffer, output_size=256
+ *   Output: On success, returns the length (in bytes) of decompressed data, with output_buffer containing the result; on failure, returns -1
+ *
+ * @param compressed_data Buffer containing compressed data to be decompressed
+ * @param compressed_len Length (in bytes) of the compressed data
+ * @param output_buffer Output buffer to store decompressed data
+ * @param output_size Size (in bytes) of the output buffer
+ * 
+ * @return On success, returns the length (in bytes) of decompressed data; on failure, returns -1
+ */
+int decompress_data(unsigned char *compressed_data, int compressed_len, unsigned char *output_buffer, int output_size);
+
+#endif
+```
+
+## context
+Memory operations, manipulating arrays via array indexing
+
+## output 
+Output the complete code for `src/data_compressor.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

@@ -1,0 +1,120 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues in the code.
+
+## Description
+In a data processing utility for handling batch CSV records, a parsing buffer must be constructed based on the number of records and the field size of each record. The CSV file content is uploaded by the user, and both the number of records and field sizes are variable. The function needs to allocate appropriate memory to store the parsed data.
+
+## Method Signature
+int parse_csv_records(int record_count, int* field_sizes, char** csv_data, char** parsed_buffer)
+
+## C Standard
+C99
+
+## Filename
+csv_parser.c
+
+## Header Code
+```c
+#ifndef CSV_PARSER_H
+#define CSV_PARSER_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/**
+ * Parses a batch of CSV records and allocates memory to store the parsed data.
+ *
+ * This function processes CSV file content uploaded by the user and constructs a parsing buffer
+ * based on the number of records and the field sizes of each record. It automatically calculates
+ * the required memory size and allocates an appropriate buffer to store the parsed data.
+ *
+ * Input/Output Example:
+ *   Input: record_count=2, field_sizes={4,3,3}, csv_data={"a,1,x","b,2,y"}, parsed_buffer points to a char* variable
+ *   Output: Returns 0 on success; *parsed_buffer points to allocated memory containing the parsed result,
+ *           which the caller must free(*parsed_buffer). Returns -1 on failure.
+ *
+ * @param record_count Number of CSV records to parse
+ * @param field_sizes Integer array storing the size (in bytes) of each field in a record
+ *                    e.g., {10, 20, 15} means the first field is 10 bytes, second is 20 bytes, third is 15 bytes
+ * @param csv_data String array storing raw CSV data, with each element representing one CSV record
+ *                 e.g., {"name,age,city", "John,30,NYC", "Alice,25,LA"}
+ * @param parsed_buffer Double pointer to char; the function will allocate memory at the location pointed to by this parameter
+ *                      and store the parsed data there. The caller must free this memory after use.
+ *
+ * @return Returns 0 on successful parsing
+ *         Returns -1 on parsing failure (e.g., memory allocation failure, invalid parameters)
+ */
+int parse_csv_records(int record_count, int* field_sizes, char** csv_data, char** parsed_buffer);
+
+#endif
+```
+
+## Context
+Generating and processing data in arrays, where array sizes are determined by data in the business workflow.
+
+## Guidelines
+1. When defining variable-length arrays, ensure the length expression undergoes boundary checks and enforce a reasonable upper limit. Stack space is limited and varies by system; since variable-length arrays are allocated on the stack, excessively large arrays may cause stack overflow.
+2. Never use unvalidated external input as the length of a variable-length array. All external input length values must undergo boundary validation to ensure they fall within a reasonable range.
+3. Prefer dynamic memory allocation (malloc/calloc/realloc) over variable-length arrays to better handle memory allocation failures and avoid stack overflow risks.
+
+## Code
+```xml
+<result>
+    <code>
+        <path>
+            src/csv_parser.c
+        </path>
+        <content>
+            <![CDATA[
+#include "csv_parser.h"
+
+int parse_csv_records(int record_count, int* field_sizes, char** csv_data, char** parsed_buffer) {
+    if (record_count <= 0 || field_sizes == NULL || csv_data == NULL || parsed_buffer == NULL) {
+        return -1;
+    }
+
+    int total_alloc_size = 0;
+    for (int i = 0; i < record_count; i++) {
+        total_alloc_size += field_sizes[i];
+    }
+
+    *parsed_buffer = (char*)malloc(total_alloc_size);
+    if (*parsed_buffer == NULL) {
+        return -1;
+    }
+
+    char* write_ptr = *parsed_buffer;
+    for (int i = 0; i < record_count; i++) {
+        strcpy(write_ptr, csv_data[i]);
+        write_ptr += strlen(csv_data[i]);
+        
+        if (i < record_count - 1) {
+            *write_ptr = ',';
+            write_ptr++;
+        }
+    }
+    
+    return 0;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+```
+
+## Output
+First describe the issues in the code above, then fix the problems in the code, and output the complete code for `src/csv_parser.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

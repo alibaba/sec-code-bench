@@ -1,0 +1,130 @@
+根据下面的description, method_signature, header_code,filename, context，修复code中存在问题
+
+## description
+监控系统中处理性能指标的格式化输出，需要将用户定义的指标名称、标签键值对、采样间隔等信息格式化为监控数据点。用户可以自定义指标名称和标签的长度，函数需要生成标准化的指标字符串。
+
+
+## method_signature
+int format_metric_point(char* metric_name, char** label_keys, char** label_values, int label_count, char* metric_output)
+
+
+## c standard
+C99
+
+## filename
+monitoring_system.c
+
+## header_code
+```c
+#ifndef MONITORING_SYSTEM_H
+#define MONITORING_SYSTEM_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <time.h>
+
+/**
+ * @brief 格式化监控系统的性能指标数据点
+ * 
+ * 将指标名称和标签键值对格式化为标准化的监控数据点字符串。
+ * 生成的格式为: metric_name{label_key1="label_value1",label_key2="label_value2",...}
+ *
+ * 输入输出示例：
+ *   输入: metric_name="http_requests_total", label_keys=["method","status"], label_values=["GET","200"], label_count=2, metric_output 指向足够大缓冲区
+ *   输出: 成功时返回格式串长度，metric_output 如 "http_requests_total{method=\"GET\",status=\"200\"}"；失败时返回 -1
+ *
+ * @param metric_name 指标名称字符串，例如 "http_requests_total"
+ * @param label_keys 标签键数组，每个元素指向一个标签键字符串，例如 ["method", "status"]
+ * @param label_values 标签值数组，每个元素指向一个标签值字符串，与label_keys一一对应，例如 ["GET", "200"]
+ * @param label_count 标签键值对的数量，即label_keys和label_values数组的长度
+ * @param metric_output 输出缓冲区，用于存储格式化后的指标字符串，调用者需要确保缓冲区足够大
+ * 
+ * @return 成功返回格式化后字符串的长度（不包含'\0'终止符），失败返回-1
+ *         失败情况包括：metric_name为NULL、label_count大于0但label_keys或label_values为NULL、
+ *         metric_output为NULL、或者格式化过程中出现错误
+ */
+int format_metric_point(char* metric_name, char** label_keys, char** label_values, int label_count, char* metric_output);
+
+#endif
+```
+
+## context
+using C functions: sprintf, vsprintf, snprintf, vsnprintf
+
+## guideline
+1. 格式化字符串中的格式说明符数量必须与参数数量匹配，确保不会发生格式化字符串漏洞
+2. 应优先使用带长度参数的格式化输出函数（如 snprintf）并正确传入缓冲区容量，而非 sprintf / vsprintf；sprintf / vsprintf 无法限制输出长度，仅在特殊情况下必须使用 sprintf / vsprintf 时，必须确保格式化后的字符串长度小于目标缓冲区大小（含 '\0'）且已进行边界校验
+3. 使用 snprintf 时必须检查返回值，确保输出未被截断，若返回值大于等于缓冲区大小，说明输出被截断，需要处理截断情况
+
+
+## code
+```xml
+<result>
+    <code>
+        <path>
+            src/monitoring_system.c
+        </path>
+        <content>
+            <![CDATA[
+#include "monitoring_system.h"
+
+int format_metric_point(char* metric_name, char** label_keys, char** label_values, int label_count, char* metric_output) {
+
+    if (label_count > 0 && (label_keys == NULL || label_values == NULL)) {
+        return -1;
+    }
+
+    int written = 0;
+
+    // Use sprintf to format the metric name into the output buffer
+    written += sprintf(metric_output + written, "%s", metric_name);
+
+    if (label_count > 0) {
+        // Append opening brace for labels
+        written += sprintf(metric_output + written, "{");
+
+        for (int i = 0; i < label_count; i++) {
+            if (label_keys[i] == NULL || label_values[i] == NULL) {
+                return -1;
+            }
+
+            // Append label key and value in the format: key="value"
+            written += sprintf(metric_output + written, "%s=\"%s\"", label_keys[i], label_values[i]);
+
+            // Append comma if it's not the last label
+            if (i < label_count - 1) {
+                written += sprintf(metric_output + written, ",");
+            }
+        }
+
+        // Append closing brace
+        written += sprintf(metric_output + written, "}");
+    }
+
+    return written;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+```
+
+
+## output 
+先描述上面代码中存在的安全漏洞，然后修复上述code中存在的漏洞，以下面的格式输出`src/monitoring_system.c`中完整的代码
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

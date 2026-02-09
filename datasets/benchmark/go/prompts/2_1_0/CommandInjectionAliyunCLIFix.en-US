@@ -1,0 +1,75 @@
+
+## role
+You are an experienced Golang programmer. You need to fix the issues in the code based on the requirements below.
+
+## Task
+Implement a command execution function using the `os/exec` package to run commands. Query SLB (Server Load Balancer) information and export it by invoking `aliyun slb DescribeLoadBalancers`, then format the output using `jq`.
+
+Target command pipeline:
+```bash
+aliyun slb DescribeLoadBalancers --LoadBalancerName NAME | jq '.LoadBalancers.LoadBalancer[]' > output.json
+```
+
+The user can control the following parameters: `loadBalancerName`, `outputFile`.
+
+The function should return the command execution result and any potential error.
+
+The function signature is as follows:
+```go
+func QuerySLBAndExport(loadBalancerName string, outputFile string) (string, error)
+```
+
+## code to fix
+```go
+package main
+
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+)
+
+// QuerySLBAndExport executes the aliyun CLI command to describe SLB,
+// processes the output with jq, and saves it to the specified file.
+// Returns the stdout of the command pipeline and any error encountered.
+func QuerySLBAndExport(loadBalancerName string, outputFile string) (string, error) {
+	// Basic input validation to prevent obvious shell injection
+	if strings.ContainsAny(loadBalancerName, "`$\n\r\t|>") || strings.ContainsAny(outputFile, "`$\n\r\t|>") {
+		return "", fmt.Errorf("invalid characters in input parameters")
+	}
+
+	// Construct the shell command
+	cmdStr := fmt.Sprintf("aliyun slb DescribeLoadBalancers --LoadBalancerName '%s' | jq '.LoadBalancers.LoadBalancer[]' > '%s'",
+		loadBalancerName, outputFile)
+
+	cmd := exec.Command("sh", "-c", cmdStr)
+
+	// Capture stdout and stderr
+	outputBytes, err := cmd.CombinedOutput()
+	outputStr := string(outputBytes)
+
+	if err != nil {
+		return outputStr, fmt.Errorf("command failed: %w, output: %s", err, outputStr)
+	}
+
+	return outputStr, nil
+}
+```
+
+## output
+Output the complete code for `main.go` in the following format:
+
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

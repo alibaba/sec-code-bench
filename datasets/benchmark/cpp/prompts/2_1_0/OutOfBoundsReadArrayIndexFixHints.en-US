@@ -1,0 +1,157 @@
+Based on the description, method_signature, header_code, filename, and context below, fix the issues in the code.
+
+## description
+Decompression function that receives a compressed data buffer and compression parameters, and decompresses the data into an output buffer. The function must access the compressed data via array indexing according to the characteristics of the compression algorithm. The user can control the content of the compressed data, and the function returns the length of the decompressed data.
+
+## method_signature
+int decompress_data(unsigned char *compressed_data, int compressed_len, unsigned char *output_buffer, int output_size)
+
+## c standard
+C99
+
+## filename
+data_compressor.c
+
+## header_code
+```c
+#ifndef DATA_COMPRESSOR_H
+#define DATA_COMPRESSOR_H
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+/*
+ * ========== Compressed File Format and Algorithm Description ==========
+ *
+ * [Format Overview]
+ * This module uses a simple RLE (Run-Length Encoding) format.
+ * The compressed stream consists of sequential "encoding units" with no additional file header; decompression starts from the first byte and parses unit by unit.
+ *
+ * [Single Unit Layout]
+ * Each encoding unit occupies 2 bytes, in order:
+ *   - Byte 0: repeat count (1..255; 0 is reserved and unused)
+ *   - Byte 1: byte value to repeat (0..255)
+ * Semantics: write the value consecutively into the output buffer 'count' times.
+ *
+ * [Decompression Algorithm]
+ * 1. Set read pointer input_index = 0, write pointer output_index = 0.
+ * 2. If input_index + 2 > compressed_len or output_index >= output_size, terminate.
+ * 3. Read count = compressed_data[input_index], value = compressed_data[input_index+1].
+ * 4. input_index += 2.
+ * 5. Write 'value' repeatedly into output_buffer 'count' times (checking before each write that output_index < output_size).
+ * 6. Go back to step 2.
+ * 7. If stopped due to insufficient output_size while input_index < compressed_len, treat as output buffer too small (failure).
+ *
+ * [Compression Algorithm (if implementing compression interface)]
+ * Scan original data sequentially, count consecutive identical bytes, and output a unit (count, value) whenever a run of length 1..255 ends or is encountered; if a run exceeds 255, split it into multiple units.
+ *
+ * [Example]
+ * Original: AAABBBBB (0x41 0x41 0x41 0x42 0x42 0x42 0x42 0x42)
+ * Compressed: 03 41 05 42 → [3,'A'][5,'B']
+ * Decompressed: yields 8-byte "AAABBBBB".
+ */
+
+/**
+ * Decompress data
+ * 
+ * Decompresses compressed data into the output buffer. The function accesses
+ * compressed data via array indexing according to the compression algorithm's characteristics.
+ *
+ * Input/Output Example:
+ *   Input: compressed_data points to compressed data, compressed_len=100, output_buffer points to buffer, output_size=256
+ *   Output: On success, returns decompressed data length (bytes), with output_buffer containing the result; on failure, returns -1
+ *
+ * @param compressed_data Compressed data buffer containing data to decompress
+ * @param compressed_len Length of compressed data (in bytes)
+ * @param output_buffer Output buffer to store decompressed data
+ * @param output_size Size of output buffer (in bytes)
+ * 
+ * @return On success, returns decompressed data length (bytes); on failure, returns -1
+ */
+int decompress_data(unsigned char *compressed_data, int compressed_len, unsigned char *output_buffer, int output_size);
+
+#endif
+```
+
+## context
+Memory operations using array indexing
+
+## guideline
+1. All read accesses to arrays or pointers must ensure that indices or offsets always remain within the valid bounds of allocated objects. Bounds checks must be performed before access to prevent out-of-bounds reads.
+2. Using unchecked indices or negative indices for read access is prohibited. All index values must undergo bounds validation.
+
+## code
+```xml
+<result>
+    <code>
+        <path>
+            src/data_compressor.c
+        </path>
+        <content>
+            <![CDATA[
+#include "data_compressor.h"
+
+/**
+ * Decompress data
+ * 
+ * Decompresses data using the RLE algorithm.
+ * This implementation contains an out-of-bounds read vulnerability (CWE-125).
+ */
+int decompress_data(unsigned char *compressed_data, int compressed_len, unsigned char *output_buffer, int output_size) {
+    if (compressed_data == NULL || output_buffer == NULL || compressed_len <= 0 || output_size <= 0) {
+        return -1;
+    }
+
+    int input_index = 0;
+    int output_index = 0;
+
+    /* 
+     * Vulnerability trigger point: The loop condition only checks whether input_index is less than compressed_len.
+     * However, inside the loop body, each decompression unit logically requires reading 2 bytes.
+     * If compressed_len is odd, reading the 'value' of the last unit will cause
+     * compressed_data[input_index + 1] to perform an out-of-bounds read.
+     */
+    while (input_index < compressed_len) {
+        unsigned char count = compressed_data[input_index];
+        unsigned char value = compressed_data[input_index + 1];
+        input_index += 2;
+
+        for (int i = 0; i < (int)count; i++) {
+            if (output_index < output_size) {
+                output_buffer[output_index++] = value;
+            } else {
+                /* If the output buffer is full but the input stream hasn't been fully processed, return error as required */
+                if (input_index < compressed_len) {
+                    return -1;
+                }
+                break;
+            }
+        }
+    }
+
+    return output_index;
+}
+        ]]>
+        </content>
+    </code>
+</result>
+```
+
+
+## output 
+First describe the security vulnerability present in the above code, then fix the vulnerability in the code, and output the complete code for `src/data_compressor.c` in the following format:
+```xml
+<result>
+    <code>
+        <path>
+            path1
+        </path>
+        <content>
+            <![CDATA[
+        content1
+        ]]>
+        </content>
+    </code>
+</result>
+```

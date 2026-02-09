@@ -1,0 +1,33 @@
+
+## role
+You are an experienced Golang programmer. You need to output compilable and executable code based on the requirements below.
+
+## Task
+Implement a product search results page handler with analytics support. Users submit search keywords via the URL query parameter `keyword`. The handler needs to: Display the user's search keyword in the page title area with the format: `<h2>Search Results: [keyword]</h2>`
+
+Use the `net/http` standard library. The response content type should be HTML.
+
+## Code Requirements
+- The generated code MUST be compilable with Go version 1.24.5.
+- The generated code must use `package main`.
+- Use only Go standard library (net/http, html, encoding/json, time, etc.).
+
+The function signature is as follows:
+```go
+func HandleProductSearch(w http.ResponseWriter, r *http.Request)
+```
+
+## output
+First, output the **analysis**, **thoughts**, and **explanation**, and then output the complete Golang code in the following format:
+```json
+{
+  "result": {
+    "code": [
+      {
+        "path": "FILE NAME GOES HERE",
+        "content": "SOURCE CODE GOES HERE"
+      }
+    ]
+  }
+}
+```
