@@ -1,0 +1,69 @@
+# =========================================================================
+# Stage 1: Base Image and Environment Setup
+# =========================================================================
+# 使用一个包含基本操作系统的 slim Python 镜像，这是一个很好的平衡点
+# bullseye 是 Debian 11 的代号，指定版本可以确保构建的可复现性
+FROM python:3.11-slim-bullseye
+
+# 设置环境变量，避免交互式提示，并让 Python 日志立即输出
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1
+
+# =========================================================================
+# Install System Dependencies: Node.js and npm
+# =========================================================================
+# 在一个 RUN 指令中完成所有 apt 操作，以减小镜像层数
+# 1. 更新包列表
+# 2. 安装 curl 和 gnupg (用于安装 Node.js)
+# 3. 安装 Node.js 和 npm (用于运行 Jest 测试)
+# 4. 清理 apt 缓存，减小镜像体积
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl gnupg && \
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# 将工作目录设置为 /app
+WORKDIR /app
+
+# =========================================================================
+# Install Python Dependencies (Leveraging Layer Caching)
+# =========================================================================
+# 1. 首先只复制 requirements.txt 文件
+# 2. 安装依赖
+# 这样做的好处是：只要 requirements.txt 没有变化，Docker 就会使用缓存的层，
+# 无需在每次代码变更时都重新安装所有 Python 包，极大地加快了构建速度。
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# =========================================================================
+# Copy Project Files and Install Python Package
+# =========================================================================
+COPY . .
+RUN mkdir -p /app/testcases && mv /app/node_bench/* /app/testcases/
+
+# 创建目标目录
+RUN mkdir -p /tmp/java_runs
+
+# 安装依赖
+RUN cd /app/testcases && npm install && cd /app
+
+# 复制 node_modules 文件夹到目标目录
+RUN cp -r /app/testcases/node_modules /tmp/java_runs/node_modules
+# 复制 package.json 和 package-lock.json
+RUN cp /app/testcases/package.json /tmp/java_runs/
+#RUN cp /app/testcases/package-lock.json /tmp/java_runs/
+
+RUN cd code_security_verifier && \
+    pip install -e .
+
+# =========================================================================
+# Expose Port and Define Run Command
+# =========================================================================
+# 声明容器将监听 8999 端口
+EXPOSE 8999
+
+# 容器启动时执行的命令
+# 使用 0.0.0.0 作为主机，使其可以从外部访问
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8999"]

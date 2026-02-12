@@ -1,0 +1,43 @@
+FROM python:3.11-slim-bullseye
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    UV_CACHE_DIR=/app/uv_cache
+
+WORKDIR /app
+
+# Create a non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Copy requirements from verify directory (relative to release root)
+COPY verify/requirements.txt .
+# Install base requirements including uv
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code from verify directory (relative to release root)
+COPY verify/ .
+
+# Copy repos data from output_repos directory to /app/output_repos (relative to release root)
+COPY python_bench /app/python_bench
+
+# Warmup uv cache
+# This will download all dependencies defined in output_repos/*/requirements.txt into /app/uv_cache
+RUN mkdir -p /app/uv_cache && \
+    python warmup_deps.py && \
+    echo "UV Warmup Finished"
+
+# Change ownership of the application directory to the non-root user
+# This ensures appuser can access the uv cache
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 5000
+
+# Run with Gunicorn
+# -w 8: High concurrency for 16GB memory instances
+# -b 0.0.0.0:5000: Bind to port 5000
+# --timeout 120: Increase timeout for long-running tests
+CMD ["gunicorn", "-w", "16", "-b", "0.0.0.0:5000", "--timeout", "120", "app:app"]

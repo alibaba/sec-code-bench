@@ -1,0 +1,2 @@
+class InvalidLLMFormatException(Exception):
+    pass
