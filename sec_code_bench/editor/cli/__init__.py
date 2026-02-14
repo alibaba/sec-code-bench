@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import subprocess
 from abc import abstractmethod
 
@@ -85,6 +86,12 @@ class CliEditor(Editor):
             '"' + prompt + '"',
         ] + self._get_extends_args()
 
+        # Log the complete command details for debugging
+        LOG.info(f"CLI binary: {command[0]}")
+        LOG.info(f"CLI args: {command[1]} {' '.join(command[3:])}")
+        LOG.info(f"CLI working directory: {code_dir}")
+        LOG.info(f"CLI full prompt:\n{prompt}\n--- END OF PROMPT ---")
+
         proc: subprocess.Popen | None = None
         try:
             proc = subprocess.Popen(
@@ -119,6 +126,17 @@ class CliEditor(Editor):
                 proc.wait()
 
         self.finish = True
+
+        # Log command completion and check if files were created
+        LOG.info(f"CLI finished with return_code={self.return_code}")
+        # List files in code_dir to see what was created
+        if os.path.isdir(code_dir):
+            files_created = []
+            for root, dirs, files in os.walk(code_dir):
+                for f in files:
+                    rel_path = os.path.relpath(os.path.join(root, f), code_dir)
+                    files_created.append(rel_path)
+            LOG.info(f"Files in code_dir after CLI: {files_created if files_created else '(empty)'}")
 
     def __enter__(self) -> "CliEditor":
         """

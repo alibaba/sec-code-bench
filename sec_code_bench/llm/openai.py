@@ -61,12 +61,14 @@ class OPENAI(LLMBase):
     @override
     async def _aquery_implementation(
         self,
+        sys_prompt: str,
         user_prompt: str,
         **kwargs: Any
     ) -> str:
         """Implementation of async query for OpenAI API.
 
         Args:
+            sys_prompt: System prompt
             user_prompt: User prompt
             parameters: Optional parameters dict to pass to the API call.
                 Parameters like "reasoning_effort", "max_tokens", etc. will be
@@ -127,7 +129,7 @@ class OPENAI(LLMBase):
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a professional programmer.",
+                        "content": sys_prompt if sys_prompt else "TODO",
                     },
                     {
                         "role": "user",

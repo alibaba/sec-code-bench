@@ -17,7 +17,11 @@ from sec_code_bench.evaluator.base import LanguageSupport
 from sec_code_bench.evaluator.language_handler.base import (
     LanguageHandlerBase,
 )
+from sec_code_bench.evaluator.language_handler.cpp import CppHandler
+from sec_code_bench.evaluator.language_handler.go import GoHandler
 from sec_code_bench.evaluator.language_handler.java import JavaHandler
+from sec_code_bench.evaluator.language_handler.nodejs import NodeJsHandler
+from sec_code_bench.evaluator.language_handler.python import PythonHandler
 
 
 class HandlerFactory:
@@ -25,9 +29,10 @@ class HandlerFactory:
 
     handlers: dict[str, type[LanguageHandlerBase]] = {
         "java": JavaHandler,
-        # "python": PythonHandler,
-        # "cpp": CppHandler,
-        # etc.
+        "python": PythonHandler,
+        "go": GoHandler,
+        "nodejs": NodeJsHandler,
+        "cpp": CppHandler,
     }
 
     @classmethod

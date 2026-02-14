@@ -216,11 +216,12 @@ class LLMBase(ABC):
         reraise=True,  # Re-raise the exception after all retries
         before=Logger.log_before,
     )
-    async def aquery(self, user_prompt: str, **kwargs: Any) -> str:
+    async def aquery(self, sys_prompt: str, user_prompt: str, **kwargs: Any) -> str:
         """Asynchronous query method with rate limiting
 
         Args:
-            user_prompt: Input user prompt
+            sys_prompt: System prompt
+            user_prompt: User prompt
             **kwargs: Additional arguments for the query implementation
 
         Returns:
@@ -229,15 +230,16 @@ class LLMBase(ABC):
         # Use context manager for rate limiting
         async with self.rate_limit:
             # Call the specific implementation
-            return await self._aquery_implementation(user_prompt, **kwargs)
+            return await self._aquery_implementation(sys_prompt, user_prompt, **kwargs)
 
     # Need to encapsulate exceptions and return for capture
     @abstractmethod
-    async def _aquery_implementation(self, user_prompt: str, **kwargs: Any) -> str:
+    async def _aquery_implementation(self, sys_prompt: str, user_prompt: str, **kwargs: Any) -> str:
         """Specific async query implementation to be provided by subclasses
 
         Args:
-            user_prompt: Input user prompt
+            sys_prompt: System prompt
+            user_prompt: User prompt
             **kwargs: Additional arguments for the query implementation
 
         Returns:

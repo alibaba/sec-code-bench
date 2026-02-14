@@ -28,6 +28,12 @@ from sec_code_bench.editor.cli.claude_code import ClaudeCodeEditor
 from sec_code_bench.editor.cli.codebuddy import CodeBuddyCliEditor
 from sec_code_bench.editor.cli.codex import CodexEditor
 from sec_code_bench.editor.cli.qwen_code import QwenEditor
+from sec_code_bench.editor.cli.cursor import CursorCliEditor
+from sec_code_bench.editor.cli.gemini import GeminiCliEditor
+from sec_code_bench.editor.cli.trae import TraeCliEditor
+from sec_code_bench.editor.cli.kimi import KimiCliEditor
+from sec_code_bench.editor.cli.copilot import CopilotCliEditor
+from sec_code_bench.editor.cli.qoder import QoderCliEditor
 
 
 class IDEModel(Enum):
@@ -54,6 +60,13 @@ class IDEType(Enum):
     CODEBUDDY_CLI = "codebuddy-cli"
     QWEN_CODE = "qwen-code"
     CODEX = "codex"
+    QODER_CLI = "qoder-cli"
+    CURSOR_CLI = "cursor-cli"
+    GEMINI_CLI = "gemini-cli"
+    TRAE_CLI = "trae-cli"
+    KIMI_CLI = "kimi"
+    COPILOT_CLI = "copilot-cli"
+    
 
 
 class EditorFactory:
@@ -75,6 +88,12 @@ class EditorFactory:
         IDEType.CODEBUDDY_CLI: CodeBuddyCliEditor,
         IDEType.QWEN_CODE: QwenEditor,
         IDEType.CODEX: CodexEditor,
+        IDEType.QODER_CLI: QoderCliEditor,
+        IDEType.CURSOR_CLI: CursorCliEditor,
+        IDEType.GEMINI_CLI: GeminiCliEditor,
+        IDEType.TRAE_CLI: TraeCliEditor,
+        IDEType.KIMI_CLI: KimiCliEditor,
+        IDEType.COPILOT_CLI: CopilotCliEditor,
     }
 
     @classmethod

@@ -68,25 +68,45 @@ class LLMManager:
 
         # Default rate limiter: maximum 60 requests per minute
         if rate_limit is None:
-            rate_limit = RateLimiter(max_cnts=60, window_seconds=60, burst_size=1)
+            rate_limit = RateLimiter(max_cnts=60,
+                                     window_seconds=60,
+                                     burst_size=1)
 
         # Create instance with config and rate limiter
         instance = model_class(config, rate_limit, **kwargs)
         self._models[name] = instance
         return instance
 
-    def get_instance(self, name: str) -> LLMBase | None:
+    def has_instance(self, name: str) -> bool:
+        """Check if a model instance exists.
+
+        Args:
+            name: Name of the instance to check
+
+        Returns:
+            True if instance exists, False otherwise
+        """
+        return name in self._models
+
+    def get_instance(self, name: str) -> LLMBase:
         """Get a model instance.
 
         Args:
             name: Name of the instance to retrieve
 
         Returns:
-            Model instance or None if not found
+            Model instance
+
+        Raises:
+            ValueError: If model instance not found
         """
         instance = self._models.get(name)
         if not instance:
-            return None
+            available = ", ".join(self._models.keys()) if self._models else "none"
+            raise ValueError(
+                f"LLM model '{name}' not found in manager. "
+                f"Available models: {available}"
+            )
         return instance
 
     def shutdown_all(self) -> None:

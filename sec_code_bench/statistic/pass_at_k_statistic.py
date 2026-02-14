@@ -61,6 +61,7 @@ def stat_pass_at_k_score(
                 {
                     "model": model,
                     "testcase": case.case_id,
+                    "language": case.language.value,
                     "scenario": scenario.value,
                     "pass_at_k": pass_at_k_score,
                     "severity": case.severity,

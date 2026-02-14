@@ -1,0 +1,42 @@
+# Evaluation Runner (connects to shared verifiers)
+#
+# This file defines the sec-code-bench evaluation service that connects to
+# the shared verifier network. Multiple instances can run in parallel.
+#
+# Prerequisites:
+#   - Verifiers must be running: docker compose -f docker-compose-verifiers.yml up -d
+#   - The 'secbench-verifier-net' network must exist
+#
+# Usage:
+#   # Run multiple evaluations in parallel with different project names
+#   docker compose -f docker-compose-eval.yml -p eval-model-a up
+#   docker compose -f docker-compose-eval.yml -p eval-model-b up
+#
+#   # Or with different config files
+#   CONFIG_FILE=config-model-a.yaml docker compose -f docker-compose-eval.yml -p model-a up
+#   CONFIG_FILE=config-model-b.yaml docker compose -f docker-compose-eval.yml -p model-b up
+#
+# Environment variables:
+#   - CONFIG_FILE: Path to config.yaml (default: ./config.yaml)
+#   - LOCAL_RESULT_DIR: Directory for results (default: ./results)
+
+services:
+  sec-code-bench:
+    image: sec-code-bench:v2.2
+    build:
+      context: .
+      dockerfile: Dockerfile
+    pull_policy: never
+    entrypoint: ["/entrypoint.sh"]
+    volumes:
+      - ./docker/entrypoint.sh:/entrypoint.sh:ro
+      - ${CONFIG_FILE:-./config.yaml}:/sec-code-bench/config.yaml:ro
+      - ${LOCAL_RESULT_DIR:-./results}:/dockershare
+    networks:
+      - secbench-verifier-net
+    restart: no
+
+networks:
+  secbench-verifier-net:
+    external: true
+    name: secbench-verifier-net
