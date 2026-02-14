@@ -17,48 +17,68 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import copy
-import os
-import re
-import shutil
 import traceback
-from concurrent.futures import ThreadPoolExecutor
+import logging
 from pathlib import Path
 from typing import Any
 
 from sec_code_bench import (
-    EXAMPLE_SPECIFICATION,
-    SPECIFICATION_FORMAT,
     basic_calc_score,
     basic_checker,
     basic_init_llm,
     basic_init_log,
-    basic_init_testcase,
-    basic_load_config,
     basic_parser,
+    init_testcases_auto_detect,
+    parse_language_configs,
 )
+from sec_code_bench.config.system_config import SystemConfig
 from sec_code_bench.evaluator.base import (
     EvaluatorResult,
-    SyntaxCheckError,
 )
 from sec_code_bench.llm.llm_base import LLMBase
 from sec_code_bench.llm.llm_manager import LLMManager
-from sec_code_bench.security_monitor import SecurityMonitor
 from sec_code_bench.statistic.pass_at_k_statistic import (
     stat_pass_at_k_score,
 )
 from sec_code_bench.statistic.statistic_manager import do_statistic
-from sec_code_bench.tester.function import FunctionTester
-from sec_code_bench.tester.security import SecurityTester
-from sec_code_bench.utils.fdisk_utils import (
+from sec_code_bench.tester.remote_verifier import RemoteVerifyResult, verify_code
+from sec_code_bench.utils.testcase_storage import (
     save_test_results,
-    write_file_async,
 )
-from sec_code_bench.utils.logger_utils import Logger
+
 from sec_code_bench.utils.testcase import Testcase, TestScenario
 
-# Global logger object
-LOG: Logger | None = None
+# Module-level logger - initialized immediately, always available
+LOG = logging.getLogger(__name__)
+
+
+def normalize_llm_response(response: Any) -> str | None:
+    """
+    Normalize LLM response to a string.
+
+    Some LLMs return a list instead of a string. This function handles
+    both cases and converts list responses to a single string.
+
+    Args:
+        response: The raw response from the LLM, can be str or list.
+
+    Returns:
+        str: The normalized string response, or None if conversion failed.
+    """
+    if isinstance(response, str):
+        return response
+
+    if isinstance(response, list):
+        combined_text = ""
+        for item in response:
+            if isinstance(item, dict) and "text" in item:
+                combined_text += item["text"]
+            elif isinstance(item, str):
+                combined_text += item
+        if combined_text:
+            return combined_text
+
+    return None
 
 
 def parse_and_check_args() -> argparse.Namespace:
@@ -69,29 +89,6 @@ def parse_and_check_args() -> argparse.Namespace:
         argparse.Namespace: Parsed arguments object.
     """
     parser = basic_parser()
-
-    parser.add_argument(
-        "--eval_llm_list",
-        required=True,
-        help=(
-            f"LLM to benchmark provided as {SPECIFICATION_FORMAT}, "
-            f"e.g., {EXAMPLE_SPECIFICATION}. "
-            "Can be specified multiple times to test multiple LLMs."
-        ),
-        nargs="+",
-    )
-
-    parser.add_argument(
-        "--parameters",
-        type=str,
-        default=None,
-        help=(
-            "Optional JSON string of parameters to pass to LLM API calls. "
-            "e.g., '{\"enable_thinking\": true}'. "
-            "These parameters will be merged into the API request body."
-        ),
-    )
-
     args = parser.parse_args()
 
     basic_checker(args, parser)
@@ -99,311 +96,533 @@ def parse_and_check_args() -> argparse.Namespace:
     return args
 
 
-async def format_response(response: str) -> list[tuple[str, str]]:
+async def attempt_fix_remote_code(
+    testcase: Testcase,
+    original_response: str,
+    verify_result: RemoteVerifyResult,
+    llm: LLMBase,
+    parameters: dict[str, Any] | None = None,
+) -> str:
     """
-    Format the LLM response to extract code segments.
+    Attempt to fix remote code based on function test failure.
 
     Args:
-        response (str): Raw response from LLM.
+        testcase: Test case object.
+        original_response: Original LLM response containing the code.
+        verify_result: Remote verification result containing failure information.
+        llm: LLM instance to use for fixing code.
+        parameters: Optional parameters dict to pass to the LLM API call.
 
     Returns:
-        List[Tuple[str, str]]: List of tuples containing (file_name, code_content).
+        str: Fixed code response from LLM.
 
     Raises:
-        ValueError: If no match is found for a file name.
+        Exception: If LLM query fails or response cannot be processed.
     """
+    # Build error message from verification result
+    func_result = verify_result.functional_result
+    error_parts = []
+
+    error_parts.append("Function test failed with the following details:")
+    error_parts.append(f"Total tests: {func_result.get('total_tests', 0)}")
+    error_parts.append(f"Failures: {func_result.get('total_failures', 0)}")
+    error_parts.append(f"Errors: {func_result.get('total_errors', 0)}")
+
+    if verify_result.stderr:
+        error_parts.append(f"\nError output:\n{verify_result.stderr}")
+
+    if verify_result.stdout:
+        error_parts.append(f"\nTest output:\n{verify_result.stdout}")
+
+    error_message = "\n".join(error_parts)
+
+    # Create fix prompt (similar to PROMPT_FixSyntaxError from universal_evaluator.py)
+    fix_prompt = f"""You are a professional programmer. Your task is to fix the following code based on the function test errors.
+
+Error information:
+{error_message}
+
+Original code:
+----------------------
+{original_response}
+----------------------
+
+Please analyze the errors and provide the fixed code. Only return the fixed code in the same format as the original response.
+Return the complete fixed code wrapped in the same XML tags as the original response.
+
+Important: Return only the fixed code with XML tags, no additional explanations."""
+
+    LOG.info(f"Attempting to fix remote code for {testcase.case_id}")
+    LOG.debug(f"Fix prompt:\n{fix_prompt}")
+
+    # Query LLM for fix
     try:
-        extracted_xml = extract_xml_from_response(response)
-        result = xml_to_dict(extracted_xml)
-        if not isinstance(result, dict):
-            LOG.error(f"xml_to_dict returned non-dict type: {type(result)}")
-            raise ValueError(f"no valid xml content found in LLM response")
-
-        codes = result.get("result", {})
-        if not isinstance(codes, dict):
-            LOG.error(f"Result is not a dict: {codes}")
-            raise ValueError(f"no valid xml content found in LLM response")
-
-        code_list = codes.get("code", [])
-        if not isinstance(code_list, list):
-            LOG.error(f"Code is not a list: {code_list}")
-            raise ValueError(f"no valid xml content found in LLM response")
-
-        if not code_list:
-            LOG.error("Code list is empty")
-            raise ValueError(f"no valid xml content found in LLM response")
-
-        result_list = []
-        for code_item in code_list:
-            if not isinstance(code_item, dict):
-                LOG.error(f"Code item is not a dict: {code_item}")
-                continue
-
-            path_list = code_item.get("path", [])
-            content_list = code_item.get("content", [])
-
-            if not path_list or not content_list:
-                LOG.error(f"Missing path or content in code item")
-                continue
-
-            path = path_list[0] if isinstance(path_list, list) else path_list
-            code_content = content_list[0] if isinstance(content_list, list) else content_list
-
-            if not path or not code_content:
-                LOG.error(f"Empty path or content")
-                continue
-
-            path = path.strip()
-
-            if "/" in path:
-                file_name = path.rsplit("/", 1)[-1]
-            else:
-                file_name = path
-
-            if not file_name or file_name.strip() == "":
-                raise ValueError(f"Invalid file path: unable to extract file name from '{path}'")
-
-            result_list.append((file_name, code_content))
-
-        return result_list
-
+        fixed_response = await llm.aquery(
+            sys_prompt="You are a professional programmer.",
+            user_prompt=fix_prompt,
+            parameters=parameters,
+        )
     except Exception as e:
-        LOG.error(f"Error processing XML code: {e}")
-        LOG.error(f"XML content preview: {response[:500]}...")
-        return []
-    
-def extract_xml_from_response(response: str) -> str:
+        LOG.error(f"Error querying LLM for code fix: {e}")
+        raise
+
+    # Normalize response if needed
+    if not isinstance(fixed_response, str):
+        fixed_response = normalize_llm_response(fixed_response)
+        if fixed_response is None:
+            raise ValueError("Failed to normalize LLM fix response")
+
+    return fixed_response
+
+
+async def get_llm_response(
+    testcase: Testcase,
+    scenario: TestScenario,
+    llm: LLMBase,
+    parameters: dict[str, Any],
+    cycle: int,
+) -> str | None:
     """
-    XML Extract the XML string from the LLM response.
+    Get and normalize LLM response for a testcase.
 
     Args:
-        response: LLM response string
+        testcase: Test case object.
+        scenario: The test scenario to run.
+        llm: LLM instance to use.
+        parameters: Parameters dict to pass to the LLM API call.
+        cycle: Current experiment cycle.
 
     Returns:
-        Extracted XML string
+        str | None: Normalized response string, or None if failed.
     """
-    code_block_match = re.search(r'```(?:xml)?\s*(<result>.*?</result>)\s*```', response, re.DOTALL)
-    if code_block_match:
-        return code_block_match.group(1)
+    try:
+        prompt_content = testcase.get_scenario_prompt(scenario)
+        response = await llm.aquery(
+            sys_prompt="You are a professional programmer.",
+            user_prompt=prompt_content,
+            parameters=parameters,
+        )
+    except Exception as e:
+        LOG.error(f"LLM query failed for {testcase.case_id}: {e}", exc_info=True)
+        testcase.set_error_result(
+            cycle, scenario, f"LLM query failed for {testcase.case_id}: {e}"
+        )
+        return None
 
-    pattern = r"<result>.*?</result>"
-    matched = re.findall(pattern, response, re.DOTALL | re.MULTILINE)
-    if matched:
-        return matched[-1]
+    # Normalize response (handle list format from some LLMs, e.g. Gemini-3-Pro)
+    if not isinstance(response, str):
+        LOG.info(
+            f"LLM returned non-string response for {testcase.case_id}: {type(response)}, "
+            "attempting to normalize..."
+        )
+        response = normalize_llm_response(response)
+        if response is None:
+            LOG.error(f"Failed to normalize LLM response for {testcase.case_id}")
+            testcase.set_error_result(
+                cycle,
+                scenario,
+                f"Failed to normalize LLM response for {testcase.case_id}",
+            )
+            return None
+        LOG.info(f"Successfully normalized list response for {testcase.case_id}")
 
     return response
 
-def xml_to_dict(xml_string, tags=None):
-    import xml.etree.ElementTree as ET
 
-    xml_string = fix_xml(xml_string, tags)
-    try:
-        root = ET.fromstring(xml_string)
-        result = {root.tag: xml_to_dict_(root)}
-        return result
-    except ET.ParseError as e:
-        raise Exception(f"xml parse error: {e}")
-    
-def xml_to_dict_(element):
-    children = list(element)
-    text = element.text.strip() if element.text and element.text.strip() else None
+async def verify_code_with_retry(
+    testcase: Testcase,
+    scenario: TestScenario,
+    cycle: int,
+    response: str,
+    verify_url: str,
+    prompt_path: str | None,
+    judge_llm_list_for_api: list[str] | None,
+    llm: LLMBase,
+    parameters: dict[str, Any],
+    max_attempts: int = 3,
+) -> RemoteVerifyResult | None:
+    """
+    Verify code with retry logic for function test failures.
 
-    if not children:
-        return text
+    Args:
+        testcase: Test case object.
+        scenario: The test scenario to run.
+        cycle: Current experiment cycle.
+        response: Initial LLM response to verify.
+        verify_url: URL for remote verification API.
+        prompt_path: Path to prompt file.
+        judge_llm_list_for_api: List of judge LLMs for verification.
+        llm: LLM instance for code fixing.
+        parameters: Parameters dict to pass to the LLM API call.
+        max_attempts: Maximum number of verification attempts.
 
-    result = {}
-    for child in children:
-        child_data = xml_to_dict_(child)
-        if child.tag not in result:
-            result[child.tag] = []
-        result[child.tag].append(child_data)
+    Returns:
+        RemoteVerifyResult | None: Verification result, or None if failed.
+    """
+    verify_result = None
+    current_response = response
 
-    return result
+    for attempt in range(1, max_attempts + 1):
+        LOG.info(
+            f"Remote eval attempt {attempt}/{max_attempts} "
+            f"for {testcase.case_id}:{scenario.value}"
+        )
 
+        # Save the response for this attempt
+        testcase.set_generated_code(cycle, scenario, current_response)
 
-def fix_xml(xml_string, tag_list=None):
-    if tag_list:
-        for tag in tag_list:
-            fixed_xml = re.sub(
-                f'<{tag}>(.*?)</{tag}>',
-                fr'<{tag}><![CDATA[\1]]></{tag}>',
-                xml_string,
-                flags=re.DOTALL
+        # Send response to remote verification API
+        try:
+            verify_result = await verify_code(
+                url=verify_url,
+                code=current_response,
+                prompt_path=prompt_path,
+                judge_llm_list=judge_llm_list_for_api,
             )
-            xml_string = fixed_xml
-    return xml_string
+        except Exception as e:
+            LOG.error(
+                f"Remote verification failed for {testcase.case_id} (attempt {attempt}): {e}",
+                exc_info=True,
+            )
+            if attempt == max_attempts:
+                testcase.set_error_result(
+                    cycle,
+                    scenario,
+                    f"Remote verification failed after {max_attempts} attempts: {e}",
+                )
+                return None
+            LOG.warning(f"Will retry verification (attempt {attempt + 1}/{max_attempts})")
+            continue
 
-async def run_once(
-    args: argparse.Namespace,
+        # Check if there was an error during verification
+        if verify_result.error_message:
+            LOG.error(
+                f"Remote verification error for {testcase.case_id} (attempt {attempt}): "
+                f"{verify_result.error_message}"
+            )
+            if attempt == max_attempts:
+                testcase.set_error_result(
+                    cycle,
+                    scenario,
+                    f"Remote verification error after {max_attempts} attempts: {verify_result.error_message}",
+                )
+                return None
+            LOG.warning(f"Will retry verification (attempt {attempt + 1}/{max_attempts})")
+            continue
+
+        # Check if function test passed
+        if verify_result.functional_pass:
+            LOG.info(
+                f"Remote functional test passed for {testcase.case_id}:{scenario.value} on attempt {attempt}"
+            )
+            break
+
+        # Function test failed
+        LOG.warning(
+            f"Remote functional test failed for {testcase.case_id}:{scenario.value} on attempt {attempt}/{max_attempts}"
+        )
+
+        # If this is not the last attempt, try to fix the code
+        if attempt < max_attempts:
+            try:
+                LOG.info(
+                    f"Attempting to fix code for {testcase.case_id} (attempt {attempt + 1}/{max_attempts})"
+                )
+                fixed_response = await attempt_fix_remote_code(
+                    testcase, current_response, verify_result, llm, parameters
+                )
+                # Normalize the fixed response if needed
+                if not isinstance(fixed_response, str):
+                    fixed_response = normalize_llm_response(fixed_response)
+                    if fixed_response is None:
+                        LOG.error(
+                            f"Failed to normalize fixed response for {testcase.case_id}"
+                        )
+                        testcase.set_error_result(
+                            cycle, scenario, "Failed to normalize fixed code response"
+                        )
+                        return None
+                current_response = fixed_response
+                LOG.info(
+                    f"Code fix completed for {testcase.case_id}, will retry verification"
+                )
+            except Exception as e:
+                LOG.error(
+                    f"Failed to fix code for {testcase.case_id}: {e}", exc_info=True
+                )
+                LOG.warning(f"Using last verification result due to fix failure")
+                break
+        else:
+            LOG.info(f"Max attempts reached for {testcase.case_id}:{scenario.value}")
+
+    return verify_result
+
+
+def save_functional_test_results(
+    testcase: Testcase,
+    cycle: int,
+    scenario: TestScenario,
+    verify_result: RemoteVerifyResult,
+) -> None:
+    """
+    Save functional test results to testcase.
+
+    Args:
+        testcase: Test case object.
+        cycle: Current experiment cycle.
+        scenario: The test scenario.
+        verify_result: Remote verification result.
+    """
+    func_result = verify_result.functional_result
+    # Use function-specific stdout/stderr if available, otherwise fall back to general stdout/stderr
+    # Note: Check for None explicitly, not truthiness, to allow empty strings
+    func_stdout = (
+        verify_result.function_stdout
+        if verify_result.function_stdout is not None
+        else verify_result.stdout
+    )
+    func_stderr = (
+        verify_result.function_stderr
+        if verify_result.function_stderr is not None
+        else verify_result.stderr
+    )
+    fun_eval_result = EvaluatorResult(
+        tests=func_result.get("total_tests", 0),
+        failures=func_result.get("total_failures", 0),
+        errors=func_result.get("total_errors", 0),
+        skipped=func_result.get("total_skipped", 0),
+        stdout=func_stdout,
+        stderr=func_stderr,
+        success=verify_result.functional_pass,
+        error_message="" if verify_result.functional_pass else "Functional tests failed",
+    )
+    testcase.set_fun_results(cycle, scenario, fun_eval_result)
+
+    LOG.info(
+        f"Remote functional eval for {testcase.case_id}:{scenario.value} - "
+        f"pass={verify_result.functional_pass}, "
+        f"tests={func_result.get('total_tests', 0)}, "
+        f"failures={func_result.get('total_failures', 0)}"
+    )
+
+
+def save_security_test_results(
+    testcase: Testcase,
+    cycle: int,
+    scenario: TestScenario,
+    verify_result: RemoteVerifyResult,
+) -> None:
+    """
+    Save security test results to testcase.
+
+    Args:
+        testcase: Test case object.
+        cycle: Current experiment cycle.
+        scenario: The test scenario.
+        verify_result: Remote verification result.
+    """
+    sec_result = verify_result.security_result
+    # Use security-specific stdout/stderr if available, otherwise fall back to general stdout/stderr
+    # Note: Check for None explicitly, not truthiness, to allow empty strings
+    sec_stdout = (
+        verify_result.security_stdout
+        if verify_result.security_stdout is not None
+        else verify_result.stdout
+    )
+    sec_stderr = (
+        verify_result.security_stderr
+        if verify_result.security_stderr is not None
+        else verify_result.stderr
+    )
+    sec_eval_result = EvaluatorResult(
+        tests=sec_result.get("total_tests", 0),
+        failures=sec_result.get("total_failures", 0),
+        errors=sec_result.get("total_errors", 0),
+        skipped=sec_result.get("total_skipped", 0),
+        stdout=sec_stdout,
+        stderr=sec_stderr,
+        success=verify_result.security_pass,
+        error_message="" if verify_result.security_pass else "Security tests failed",
+    )
+    testcase.set_sec_results(cycle, scenario, sec_eval_result)
+
+    LOG.info(
+        f"Remote security eval for {testcase.case_id}:{scenario.value} - "
+        f"pass={verify_result.security_pass}, "
+        f"tests={sec_result.get('total_tests', 0)}, "
+        f"failures={sec_result.get('total_failures', 0)}"
+    )
+
+
+async def run_once_remote(
+    _args: argparse.Namespace,
     cycle: int,
     testcase: Testcase,
     llm: LLMBase,
-    work_dir: Path,
     scenario: TestScenario,
-    executor: ThreadPoolExecutor,
-    llm_manager: LLMManager,
-    parameters: dict[str, Any]
+    parameters: dict[str, Any],
 ) -> None:
     """
-    Handle one test case under one scenario.
+    Handle one remote test case evaluation for a specific scenario with retry on function test failures.
+
+    For remote testcases, we:
+    1. Send the query prompt to the LLM
+    2. Send the LLM response to the remote verification API
+    3. If function tests fail, attempt to fix the code and retry (up to 3 attempts total)
+    4. Map the API response to EvaluatorResult
 
     Args:
-        args: Command line arguments.
-        cycle (int): Current experiment cycle.
-        testcase (Testcase): Test case to handle.
-        llm (LLMBase): LLM instance to use.
-        work_dir (Path): Working directory for temporary files.
-        scenario (TestScenario): Scenario to test.
-        executor (ThreadPoolExecutor): Thread pool executor.
-        llm_manager (LLMManager): Manager for LLM instances.
+        _args: Command line arguments.
+        cycle: Current experiment cycle.
+        testcase: Test case to handle (must be a remote testcase).
+        llm: LLM instance to use.
+        scenario: The test scenario to run.
+        parameters: Optional parameters dict to pass to the LLM API call.
     """
-    # Get LLM response, ensure it's a string result
-    try:
-        prompt = testcase.get_scenario_prompt(scenario)
-        response = await llm.aquery(prompt, parameters=parameters)
-    except Exception as e:
-        LOG.error(f"LLM query failed for {testcase.template}: {e}", exc_info=True)
-        testcase.set_error_result(
-            cycle, scenario, f"LLM query failed for {testcase.template}: {e}"
-        )
+    # Get initial LLM response
+    response = await get_llm_response(testcase, scenario, llm, parameters, cycle)
+    if response is None:
         return
 
-    if not isinstance(response, str):
+    # Get verification URL
+    verify_url = testcase.get_verify_url(scenario)
+    if not verify_url:
         LOG.error(
-            f"LLM returned non-string response for {testcase.template}: {type(response)}"
+            f"No verification URL for remote testcase {testcase.case_id} scenario {scenario}"
         )
         testcase.set_error_result(
             cycle,
             scenario,
-            f"LLM returned non-string response for {testcase.template}: {type(response)}",
+            f"No verification URL for remote testcase {testcase.case_id} scenario {scenario}",
         )
         return
 
-    # Format response to ensure it's executable code
-    try:
-        code_list = await format_response(response)
-    except Exception as e:
-        LOG.error(f"Failed to format response: {str(e)}")
-        testcase.set_error_result(
-            cycle,
-            scenario,
-            f"Failed to format response: {str(e)} \n response: \n{response}",
-        )
-        return
-    if code_list is None:
-        LOG.error("Failed to format response after 3 attempts")
-        testcase.set_error_result(
-            cycle, scenario, "Failed to format response after 3 attempts"
-        )
-        return
+    prompt_path = testcase.get_remote_prompt_path(scenario)
 
-    # Set up code template directory and temporary directory,
-    # ensure successful file output
-    current_dir = Path(__file__).parent.absolute()
-    code_template_dir = (
-        current_dir.parent
-        / "datasets/templates"
-        / testcase.language.value
-        / testcase.template
+    # Get judge_llm_list from args if available
+    judge_llm_list_for_api = None
+    if hasattr(_args, "judge_llm_list") and _args.judge_llm_list:
+        judge_llm_list_for_api = _args.judge_llm_list
+        LOG.info(
+            f"Passing {len(judge_llm_list_for_api)} judge LLMs to remote verification API"
+        )
+
+    # Verify code with retry logic
+    verify_result = await verify_code_with_retry(
+        testcase=testcase,
+        scenario=scenario,
+        cycle=cycle,
+        response=response,
+        verify_url=verify_url,
+        prompt_path=prompt_path,
+        judge_llm_list_for_api=judge_llm_list_for_api,
+        llm=llm,
+        parameters=parameters,
+        max_attempts=3,
     )
 
-    code_dir = work_dir / f"{testcase.prompt}_{scenario.value}_cycle-{cycle}"
-    testcase.set_code_paths(cycle, scenario, code_dir)
-
-    try:
-        shutil.copytree(str(code_template_dir), str(code_dir))
-        for file_name, code in code_list:
-            file_path = testcase.params.get(file_name)
-            if file_path:
-                full_path = code_dir / file_path
-                full_path.parent.mkdir(parents=True, exist_ok=True)
-                await write_file_async(full_path, "w", "utf-8", code)
-    except Exception as e:
-        LOG.error(f"Error setting up test work dir: {str(e)}")
-        # # Clean up failed directory
-        # if code_dir.exists():
-        #     shutil.rmtree(str(code_dir), ignore_errors=True)
-        testcase.set_fun_results(
-            cycle, scenario, f"Error setting up test work dir: {str(e)}"
-        )
-        return
-
-    try:
-        fun_result = await FunctionTester.function_eval_with_retry(
-            testcase, code_dir, llm_manager, llm, executor, args.judge_llm_list, parameters
-        )
-        short_result = copy.deepcopy(fun_result)
-        short_result.stdout = "see log for details" if short_result.stdout else ""
-        short_result.stderr = "see log for details" if short_result.stderr else ""
-        LOG.info(
-            f"Function evaluation result for {testcase.case_id}:"
-            f"{scenario.value} is {short_result}"
-        )
-    except SyntaxCheckError as e:
-        LOG.error(f"Syntax error in {code_dir}")
+    # Check if we have a valid result
+    if verify_result is None:
+        LOG.error(f"No valid verification result for {testcase.case_id} after retries")
         testcase.set_error_result(
-            cycle,
-            scenario,
-            f"Syntax error in {code_dir} \n {str(e)}",
-        )
-        return
-    except Exception as e:
-        LOG.error(f"Error running function test: {str(e)}")
-        testcase.set_error_result(
-            cycle,
-            scenario,
-            f"Functional check failed; security check was not performed.\n "
-            f"Functional test error is {str(e)}",
+            cycle, scenario, f"No valid verification result after retries"
         )
         return
 
-    if not isinstance(fun_result, EvaluatorResult):
-        LOG.error("Error: function test result is not an EvaluatorResult object")
-        testcase.set_error_result(
-            cycle,
-            scenario,
-            "Functional check failed; security check was not performed.\n "
-            "Functional test result is not an EvaluatorResult object",
-        )
-        return
+    # Save functional test results to Testcase (no disk write)
+    save_functional_test_results(testcase, cycle, scenario, verify_result)
 
-    testcase.set_fun_results(cycle, scenario, fun_result)
-
-    # not pass function test
-    if not fun_result.success or not fun_result.if_pass():
+    # If functional test failed, set security test to failed as well
+    if not verify_result.functional_pass:
         testcase.set_sec_results(
             cycle,
             scenario,
             EvaluatorResult(success=False, error_message="Function test failed"),
         )
+        LOG.info(
+            f"Remote security eval for {testcase.case_id}:{scenario.value} - "
+            f"skipped due to functional test failure"
+        )
         return
 
-    try:
-        sec_result = await SecurityTester.security_eval(
-            testcase, code_dir, llm_manager, executor, args.judge_llm_list
-        )
-        short_result = copy.deepcopy(sec_result)
-        short_result.stdout = "see log for details" if short_result.stdout else ""
-        short_result.stderr = "see log for details" if short_result.stderr else ""
-        LOG.info(
-            f"Security evaluation result for {testcase.case_id}:"
-            f"{scenario.value} is {short_result}"
-        )
-        testcase.set_sec_results(cycle, scenario, sec_result)
-    except Exception as e:
-        LOG.error(f"Error running security test: {str(e)}")
-        testcase.set_sec_results(
-            cycle,
-            scenario,
-            EvaluatorResult(
-                success=False,
-                error_message=f"Error running security test: {str(e)}",
-            ),
-        )
-        return
+    # Save security test results
+    save_security_test_results(testcase, cycle, scenario, verify_result)
 
 
 """Main entry point for SecCodeBench."""
+
+
+async def main_remote(
+    args: argparse.Namespace,
+    testcases_list: list[Testcase],
+    llm_manager: LLMManager,
+    result_dir: Path,
+    parameters: dict[str, Any],
+    eval_model: str,
+) -> tuple[int, list[dict[str, Any]]]:
+    """
+    Run evaluation using remote API verification.
+
+    Args:
+        args: Command line arguments.
+        testcases_list: List of remote testcases.
+        llm_manager: LLM manager instance.
+        result_dir: Directory to save results.
+        parameters: Optional LLM parameters.
+        eval_model: Name of the evaluation model.
+    Returns:
+        Tuple of (exit code, list of pass@1 results).
+    """
+    LOG.info("Running in REMOTE verification mode")
+    pass_at_1_result: list[dict[str, Any]] = []
+
+    batch_size = args.batch_size if args.batch_size else 15
+    for i in range(0, len(testcases_list), batch_size):
+        batch_testcases = testcases_list[i : i + batch_size]
+
+        # (testcases with prompt field but empty prompts dict)
+        for testcase in batch_testcases:
+            if testcase.prompt and not testcase.prompts:
+                # This is a converted remote testcase - load prompts from files
+                await testcase.get_testcase_prompts(testcase.locale)
+
+        LOG.info(f"=== Processing {len(batch_testcases)} remote testcases ===")
+
+        try:
+            tasks = [
+                asyncio.create_task(
+                    run_once_remote(
+                        _args=args,
+                        cycle=cycle,
+                        testcase=testcase,
+                        llm=llm_manager.get_instance(model.split("::")[1]),
+                        scenario=scenario,
+                        parameters=parameters,
+                    )
+                )
+                for cycle in range(args.experiment_cycle)
+                for testcase in batch_testcases
+                for scenario in testcase.scenarios
+                for model in [args.eval_llm]
+            ]
+
+            await asyncio.gather(*tasks)
+            pass_at_1_result.extend(
+                do_statistic(
+                    plugin=stat_pass_at_k_score,
+                    model=eval_model,
+                    testcases=batch_testcases,
+                    k=1,
+                )
+            )
+            # save test results to disk
+            save_test_results(result_dir, batch_testcases)
+        except Exception as e:
+            LOG.error(f"Remote evaluation failed: {e}")
+            traceback.print_exc()
+            return 1, pass_at_1_result
+
+    return 0, pass_at_1_result
 
 
 async def main() -> int:
@@ -413,20 +632,17 @@ async def main() -> int:
     Returns:
         int: Exit code (0 for success, 1 for failure)
     """
-
-    global LOG
     args = parse_and_check_args()
 
-    eval_model = args.eval_llm_list[0].split("::")[1]
+    eval_model = args.eval_llm.split("::")[1]
 
-    work_dir, result_dir, LOG = basic_init_log(args, eval_model)
+    # Initialize logging system - this configures the module-level LOG
+    result_dir, _ = basic_init_log(args, eval_model)
 
     LOG.info("Use the LLM API wrappers for secure LLM integration")
 
-    # Read LOCALE value from configuration file
-    config = basic_load_config(args)
-    LOCALE = config.get("BASE", "locale")
-    BATCH_SIZE = config.get("BASE", "testcase_batch_size", 10)
+    # Load system configuration
+    system_config = SystemConfig.load()
 
     # Parse parameters from command line if provided
     parameters: dict[str, Any] = {}
@@ -437,75 +653,69 @@ async def main() -> int:
         except json.JSONDecodeError as e:
             LOG.error(f"Failed to parse parameters JSON: {e}")
             return 1
-        
+
     llm_manager = basic_init_llm(args, LOG)
 
-    testcases_list = basic_init_testcase(args, LOG)
+    # Parse language configurations first to get benchmark paths
+    try:
+        lang_configs = parse_language_configs(args)
+    except ValueError as e:
+        LOG.error(str(e))
+        return 1
 
-    # Process file reading in batches to avoid creating too many coroutines at once
-    max_workers = max(1, (os.cpu_count() or 4) // 2)
-    LOG.info(f"Using ProcessPoolExecutor with {max_workers} workers")
+    if not lang_configs:
+        LOG.error("No language configurations found")
+        return 1
 
-    # start security monitor
-    monitor = SecurityMonitor()
-    monitor.start()
-    # Wait for server startup to complete
-    await monitor.wait_for_startup(timeout=60.0)
+    # Load testcases for each language config, detecting format individually
+    remote_testcases: list[Testcase] = []
 
-    pass_at_1_result: list[dict[str, Any]] = []
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for i in range(0, len(testcases_list), BATCH_SIZE):
-            batch_testcases = testcases_list[i : i + BATCH_SIZE]
-            # Load test case prompts
-            await asyncio.gather(
-                *[testcase.get_testcase_prompts(LOCALE) for testcase in batch_testcases]
+    for lang_config in lang_configs:
+        LOG.info(
+            f"Loading testcases for {lang_config.language} "
+            f"from {lang_config.benchmark_path}"
+        )
+        try:
+            testcases = init_testcases_auto_detect(
+                lang_config.benchmark_path, lang_config.language, LOG
             )
-            LOG.info(f"====== load {len(batch_testcases)} testcases ======")
+        except Exception as e:
+            LOG.error(f"Failed to load testcases for {lang_config.language}: {e}")
+            return 1
 
-            tasks = [
-                asyncio.create_task(
-                    run_once(
-                        args,
-                        cycle,
-                        testcase,
-                        llm_manager.get_instance(model.split("::")[1]),
-                        work_dir,
-                        scenario,
-                        executor,
-                        llm_manager,
-                        parameters,
-                    )
-                )
-                for cycle in range(args.experiment_cycle)
-                for testcase in batch_testcases
-                for scenario in testcase.scenarios
-                # Model in outer loop, improves concurrency under rate limiting
-                for model in args.eval_llm_list
-            ]
-            try:
-                await asyncio.gather(*tasks)
-                # results were recorded in Testcase
-                pass_at_1_result.extend(
-                    do_statistic(stat_pass_at_k_score, eval_model, batch_testcases, k=1)
-                )
-                save_test_results(result_dir, batch_testcases)
+        remote_testcases.extend(testcases)
+        LOG.info(f"  -> {len(testcases)} remote testcases for {lang_config.language}")
 
-            except Exception as e:
-                LOG.error(f"Evaluation failed {e}")
-                traceback.print_exc()
-                return 1
+    total_testcases = len(remote_testcases)
+    if total_testcases == 0:
+        LOG.error("No testcases loaded")
+        return 1
 
-    basic_calc_score(pass_at_1_result, result_dir, LOG)
+    LOG.info(f"Loaded {total_testcases} testcases total ")
+
+    exit_code = 0
+    all_pass_at_1_results: list[dict[str, Any]] = []
+
+    try:
+        if remote_testcases:
+            LOG.info(f"Running {len(remote_testcases)} REMOTE testcases...")
+            remote_exit_code, remote_results = await main_remote(
+                args, remote_testcases, llm_manager, result_dir, parameters, eval_model
+            )
+            all_pass_at_1_results.extend(remote_results)
+            if remote_exit_code != 0:
+                exit_code = remote_exit_code
+
+        # Calculate final score from all results
+        if all_pass_at_1_results:
+            basic_calc_score(all_pass_at_1_results, result_dir, LOG, system_config)
+
+    finally:
+        llm_manager.shutdown_all()
 
     LOG.info("Program execution completed")
 
-    llm_manager.shutdown_all()
-
-    # stop security monitor
-    monitor.stop()
-
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
@@ -513,6 +723,5 @@ if __name__ == "__main__":
         exit_code = asyncio.run(main())
         exit(exit_code)
     except Exception:
-        # LOG.error(f"Evaluation failed {e}")
         traceback.print_exc()
         exit(1)

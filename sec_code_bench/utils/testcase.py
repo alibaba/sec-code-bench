@@ -17,13 +17,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+import re
+import xml.etree.ElementTree as ET
 
 from sec_code_bench.evaluator.base import (
     EvaluationMethod,
     EvaluatorResult,
     LanguageSupport,
 )
-from sec_code_bench.utils.fdisk_utils import get_content, get_content_async
+from sec_code_bench.utils.fdisk_utils import get_content_async
 from sec_code_bench.utils.logger_utils import Logger
 
 LOG = Logger.get_logger(__name__)
@@ -37,7 +39,7 @@ class TestScenario(Enum):
     Fix = "fix", "{base}/{prompt}Fix.{locale}"
     FixHints = "fix-hints", "{base}/{prompt}FixHints.{locale}"
 
-    # Add more scenarios as needed
+    prompt_path_fmt: str
 
     def __new__(cls, value: str, prompt_path_fmt: str):
         """
@@ -69,11 +71,12 @@ class Testcase:
     """
 
     case_id: str  # Unique identifier
+    language: LanguageSupport  # Required field, must be set on initialization
 
     # Test case basic information
-    FuncTester: EvaluationMethod | None = None
-    SecTester: EvaluationMethod | None = None
-    language: LanguageSupport | None = None
+    FuncTester: EvaluationMethod
+    SecTester: EvaluationMethod
+    locale: str = "zh-CN"  # Locale for prompt files
     template: str = ""
     severity: str = ""
     # If not in scenarios, prompt will be empty
@@ -92,10 +95,65 @@ class Testcase:
     code_paths: dict[int, dict[TestScenario, Path]] = field(default_factory=dict)
     score: dict[TestScenario, float] = field(default_factory=dict)
 
+    # Remote verification fields (for API-based testing)
+    is_remote: bool = False  # Flag to indicate remote testing mode
+    verify_url: str | None = None  # Remote verification API URL (single scenario)
+    verify_urls: dict[TestScenario, str] = field(default_factory=dict)
+    remote_prompt_paths: dict[TestScenario, str] = field(
+        default_factory=dict
+    )  # Per-scenario paths
+    # Generated code from LLM response
+    generated_code: dict[int, dict[TestScenario, str]] = field(default_factory=dict)
+
     def set_code_paths(self, cycle: int, scenario: TestScenario, path: Path) -> None:
         if cycle not in self.code_paths:
             self.code_paths[cycle] = {}
         self.code_paths[cycle][scenario] = path
+
+    def set_generated_code(self, cycle: int, scenario: TestScenario, code: str) -> None:
+        """
+        Set generated code (LLM response) for a specific cycle and scenario.
+
+        Args:
+            cycle: Cycle number
+            scenario: Test scenario
+            code: Raw LLM response containing generated code
+        """
+        extracted_code = code
+        try:
+            # 1) extract <result>...</result> from raw response
+            pattern = r"<result>.*?</result>"
+            matched = re.findall(pattern, code, re.DOTALL | re.MULTILINE)
+            extracted_xml = matched[-1] if matched else ""
+
+            # 2) parse XML, extract first non-empty code_content
+            if extracted_xml.strip():
+                root = ET.fromstring(extracted_xml)
+                codes = root.findall("./code")
+                for code_item in codes:
+                    content = code_item.find("content")
+                    if (
+                        content is None
+                        or content.text is None
+                        or not content.text.strip()
+                    ):
+                        continue
+
+                    # Strip leading/trailing blank lines but keep internal formatting
+                    lines = content.text.splitlines()
+                    while lines and not lines[0].strip():
+                        lines.pop(0)
+                    while lines and not lines[-1].strip():
+                        lines.pop()
+
+                    extracted_code = "\n".join(lines)
+                    break
+        except Exception:
+            extracted_code = code
+
+        if cycle not in self.generated_code:
+            self.generated_code[cycle] = {}
+        self.generated_code[cycle][scenario] = extracted_code
 
     def set_fun_results(
         self, cycle: int, scenario: TestScenario, result: EvaluatorResult
@@ -159,6 +217,10 @@ class Testcase:
         """
         Get the prompt for a specific scenario.
 
+        For remote testcases with multiple scenarios, looks up from prompts dict.
+        For remote testcases with single scenario, returns the query directly.
+        For local testcases, looks up from the prompts dictionary.
+
         Args:
             scenario: Test scenario
 
@@ -168,43 +230,59 @@ class Testcase:
         Raises:
             ValueError: If prompt is not found for the scenario
         """
-        # Directly look up the relevant prompt from the dictionary
-        try:
+        # First try to look up from prompts dict (works for both local and remote)
+        if scenario in self.prompts:
             return self.prompts[scenario]
-        except KeyError as e:
-            raise ValueError(f"Prompt not found for scenario type: {scenario}") from e
 
-    def get_testcase_prompts_sync(self, locale: str = "en-US") -> None:
+        raise ValueError(f"Prompt not found for scenario type: {scenario}")
+
+    def get_verify_url(self, scenario: TestScenario) -> str | None:
         """
-        Synchronously load prompts for all scenarios of this test case.
+        Get the verification URL for a specific scenario.
+
+        For remote testcases with multiple scenarios, looks up from verify_urls dict.
+        For remote testcases with single scenario, returns the verify_url directly.
 
         Args:
-            locale: Locale for the prompts, defaults to "en-US"
+            scenario: Test scenario
+
+        Returns:
+            Verification URL string, or None if not found
         """
-        current_dir = Path(__file__).parent.parent.parent
-        prompt_base_dir = (
-            f"{current_dir}/datasets/benchmark/{self.language.value}/prompts"
-        )
+        # First try to look up from verify_urls dict
+        if scenario in self.verify_urls:
+            return self.verify_urls[scenario]
 
-        for scenario in self.scenarios:
-            path_fmt = scenario.prompt_path_fmt
-            if path_fmt:
-                prompt_path = path_fmt.format(
-                    base=prompt_base_dir, prompt=self.prompt, locale=locale
-                )
-                content = get_content(prompt_path)
-                self.prompts[scenario] = content
-            else:
-                LOG.warning(f"Unknown scenario: {scenario} for testcase: {self.prompt}")
-        # TODO: 空prompt报错！
+        # Fall back to single verify_url field
+        return self.verify_url
 
-    async def get_testcase_prompts(self, locale: str = "en-US") -> None:
+    def get_remote_prompt_path(self, scenario: TestScenario) -> str | None:
+        """
+        Get the remote prompt path for a specific scenario.
+
+        For remote testcases with multiple scenarios, looks up from remote_prompt_paths dict.
+        For remote testcases with single scenario, returns the remote_prompt_path directly.
+
+        Args:
+            scenario: Test scenario
+
+        Returns:
+            Remote prompt path string, or None if not found
+        """
+
+        if scenario in self.remote_prompt_paths:
+            return self.remote_prompt_paths[scenario]
+
+        raise ValueError(f"Remote prompt path not found for scenario type: {scenario}")
+
+    async def get_testcase_prompts(self, locale: str = "zh-CN") -> None:
         """
         Asynchronously load prompts for all scenarios of this test case.
 
         Args:
-            locale: Locale for the prompts, defaults to "en-US"
+            locale: Locale for the prompts, defaults to "zh-CN"
         """
+        self.locale = locale  # Store locale for later use in evaluators
         current_dir = Path(__file__).parent.parent.parent
         prompt_base_dir = (
             f"{current_dir}/datasets/benchmark/{self.language.value}/prompts"
@@ -217,7 +295,9 @@ class Testcase:
                     base=prompt_base_dir, prompt=self.prompt, locale=locale
                 )
                 content = await get_content_async(prompt_path)
+                if content is None:
+                    raise ValueError(f"Prompt not found: {prompt_path}")
                 self.prompts[scenario] = content
             else:
                 LOG.warning(f"Unknown scenario: {scenario} for testcase: {self.prompt}")
-        # TODO: 空prompt报错！
+                raise ValueError(f"Unknown scenario: {scenario}")

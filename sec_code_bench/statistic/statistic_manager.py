@@ -13,44 +13,16 @@
 # limitations under the License.
 
 from collections.abc import Callable
-from typing import Any, Protocol
-
-
-class StatisticPlugin(Protocol):
-    """
-    Protocol for statistic plugin classes.
-
-    Plugin classes should implement this protocol to
-    provide statistic calculation functionality.
-    """
-
-    def calculate(
-        self, model: str, testcases: list[Any], **kwargs: Any
-    ) -> dict[str, Any]:
-        """
-        Calculate statistics for the given model and testcases.
-
-        Args:
-            model: Model name
-            testcases: List of test cases
-            **kwargs: Additional keyword arguments
-
-        Returns:
-            Dictionary containing calculated statistics
-        """
-        ...
+from typing import Any
 
 
 # Function type for statistic functions
-StatFunc = Callable[[str, list[Any]], dict[str, Any]]
-
-# Union type for plugin types
-PluginType = StatisticPlugin | StatFunc
+PluginType = Callable[..., dict[str, Any] | list[dict[str, Any]]]
 
 
 def do_statistic(
     plugin: PluginType, model: str, testcases: list[Any], **kwargs: Any
-) -> dict[str, Any]:
+) -> list[dict[str, Any]]:
     """
     Execute statistic calculation using the provided plugin.
 
@@ -61,8 +33,6 @@ def do_statistic(
         **kwargs: Additional keyword arguments
 
     Returns:
-        Dictionary containing calculated statistics
+        List of dictionaries containing calculated statistics
     """
-    if hasattr(plugin, "calculate"):
-        return plugin.calculate(model, testcases, **kwargs)
-    return plugin(model, testcases, **kwargs)
+    return plugin(model, testcases, **kwargs)   # type: ignore[union-attr]

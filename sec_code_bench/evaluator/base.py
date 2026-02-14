@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -27,7 +28,7 @@ class EvaluatorBase:
     Contains common logic, labels, type markers, and basic validation methods.
     """
 
-    def __init__(self, eval_type: Enum, tester_type: Enum, language: str) -> None:
+    def __init__(self, eval_type: Enum, tester_type: EvaluationMethod, language: LanguageSupport) -> None:
         """Initialize the evaluator base with type information.
 
         Args:
@@ -91,6 +92,18 @@ class FunctionCheckError(Exception):
         super().__init__(message)
 
 
+class RemoteFunctionTestError(Exception):
+    """Exception raised for remote function test errors that should trigger retry."""
+
+    def __init__(self, message: str) -> None:
+        """Initialize with an error message.
+
+        Args:
+            message: The error message from remote function test failure.
+        """
+        super().__init__(message)
+
+
 class EvaluationType(Enum):
     """Evaluation type enumeration."""
 
@@ -110,7 +123,6 @@ class LanguageSupport(Enum):
 
     JAVA = "java"
     PYTHON = "python"
-    # JAVASCRIPT = "javascript"
-    # C = "c"
-    # CPP = "cpp"
-    # GO = "go"
+    GO = "go"
+    NODEJS = "nodejs"
+    CPP = "cpp"

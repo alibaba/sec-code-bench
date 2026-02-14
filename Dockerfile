@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
+# Install yq for YAML parsing
+RUN wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
+    && chmod +x /usr/local/bin/yq
+
 # install Python 3.12
 RUN add-apt-repository ppa:deadsnakes/ppa && \
     apt-get update && \
@@ -35,7 +39,9 @@ ENV MAVEN_HOME=/opt/maven
 ENV PATH=$MAVEN_HOME/bin:$PATH
 
 # install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    export PATH="/root/.local/bin:$PATH" && \
+    /root/.local/bin/uv --version
 ENV PATH=/root/.local/bin:$PATH
 
 WORKDIR /sec-code-bench
@@ -43,8 +49,6 @@ WORKDIR /sec-code-bench
 COPY . /sec-code-bench/
 
 # install project dependencies
-RUN uv self update && uv sync
-# install java test dependencies
-RUN bash scripts/install_java_test_deps.sh
+RUN /root/.local/bin/uv sync
 
 CMD ["/bin/bash"] 

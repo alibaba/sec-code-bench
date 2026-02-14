@@ -1,0 +1,109 @@
+# Shared Verifier Services
+# 
+# This file defines verifier services that can be shared across multiple evaluation tasks.
+# Start once, use by multiple sec-code-bench instances.
+#
+# Usage:
+#   1. Start verifiers: docker compose -f docker-compose-verifiers.yml up -d
+#   2. Run evaluations: docker compose -f docker-compose-eval.yml -p task1 up
+#                       docker compose -f docker-compose-eval.yml -p task2 up
+#   3. Stop verifiers: docker compose -f docker-compose-verifiers.yml down
+#
+# The verifiers use an external network 'secbench-verifier-net' that evaluation
+# containers connect to. Port mappings are also provided for host access (e.g., e2e testing).
+
+services:
+  c-verifier:
+    image: c-verifier:v1.0
+    container_name: c-verifier
+    build:
+      context: docker/model/cpp
+      dockerfile: Dockerfile_bench
+    networks:
+      - secbench-verifier-net
+    ports:
+      - "24683:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  python-verifier:
+    image: python-verifier:v1.0
+    container_name: python-verifier
+    build:
+      context: docker/model/python
+      dockerfile: Dockerfile_Bench
+    networks:
+      - secbench-verifier-net
+    ports:
+      - "24684:5000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  go-verifier:
+    image: go-verifier:v1.0
+    container_name: go-verifier
+    build:
+      context: docker/model/go
+      dockerfile: Dockerfile.bench
+    networks:
+      - secbench-verifier-net
+    ports:
+      - "24685:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nodejs-verifier:
+    image: nodejs-verifier:v1.0
+    container_name: nodejs-verifier
+    build:
+      context: docker/model/nodejs
+      dockerfile: Dockerfile_bench
+    networks:
+      - secbench-verifier-net
+    ports:
+      - "24686:8999"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8999/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  java-verifier:
+    image: java-verifier:v1.0
+    container_name: java-verifier
+    build:
+      context: docker/model/java
+      dockerfile: Dockerfile
+    networks:
+      - secbench-verifier-net
+    ports:
+      - "24687:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  secbench-verifier-net:
+    name: secbench-verifier-net
+    driver: bridge
