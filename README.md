@@ -37,6 +37,8 @@ To address these challenges, we introduce `SecCodeBench`, a benchmark suite purp
 
 *   **Framework**: We provide a highly extensible testing framework. It not only supports standard multi-turn dialogue testing of model APIs but also enables **end-to-end automated evaluation of mainstream agentic coding tools (e.g., IDE plugins, CLI tools)**. Additionally, the framework generates **[comprehensive, visual reports and logs](https://alibaba.github.io/sec-code-bench)** to facilitate in-depth analysis and model diagnostics, thereby driving continuous improvement in the secure coding capabilities of large models.
 
+For more details, please refer to the [technical report](https://arxiv.org/abs/2602.15485).
+
 ## 🔬 Evaluation Workflow
 ![Workflow](./docs/images/workflow.png)
 
@@ -297,6 +299,18 @@ Thanks to all the developers who have contributed to this project!
 </div>
 
 <br>
+
+## Citation
+If you use this project in your research or find it helpful for your applications, please consider giving us a star ⭐ on GitHub and citing our work as follows:
+
+```bibtex
+@article{chen2026seccodebench,
+  title={SecCodeBench-V2 Technical Report},
+  author={Chen, Longfei and Zhao, Ji and Cui, Lanxiao and Su, Tong and Pan, Xingbo and Li, Ziyang and Wu, Yongxing and Cao, Qijiang and Cai, Qiyao and Zhang, Jing and others},
+  journal={arXiv preprint arXiv:2602.15485},
+  year={2026}
+}
+```
 
 ## 📄 License
 
