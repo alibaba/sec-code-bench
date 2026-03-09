@@ -35,8 +35,8 @@ from sec_code_bench.utils.rate_limiter import RateLimiter
 
 LOG = Logger.get_logger(__name__)
 
-# System instruction placeholder (aligned with openai.py chat completion)
-DEFAULT_INSTRUCTIONS = "TODO"
+# Default system instructions for Responses API (aligned with openai.py chat completion)
+DEFAULT_INSTRUCTIONS = "You are a helpful programming assistant."
 
 
 def _response_output_text(response: Response) -> str:

@@ -129,7 +129,7 @@ class OPENAI(LLMBase):
                 "messages": [
                     {
                         "role": "system",
-                        "content": sys_prompt if sys_prompt else "TODO",
+                        "content": sys_prompt if sys_prompt else "You are a helpful programming assistant.",
                     },
                     {
                         "role": "user",
