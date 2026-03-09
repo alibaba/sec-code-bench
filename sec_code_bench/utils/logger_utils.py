@@ -46,7 +46,9 @@ class TqdmCompatibleHandler(logging.StreamHandler):
             if self._tqdm_instance:
                 # Refresh tqdm after printing log
                 self._tqdm_instance.refresh()
-        except Exception:
+        except Exception as e:
+            # Log the exception to help debug issues with tqdm compatibility
+            sys.stderr.write(f"Error in TqdmCompatibleHandler.emit: {e}\n")
             self.handleError(record)
 
 
