@@ -148,7 +148,8 @@ class Testcase:
 
                     extracted_code = "\n".join(lines)
                     break
-        except Exception:
+        except Exception as e:
+            LOG.debug(f"Failed to extract code from XML format, using raw response: {e}")
             extracted_code = code
 
         if cycle not in self.generated_code:

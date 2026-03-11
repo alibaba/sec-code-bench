@@ -124,4 +124,4 @@ class RateLimiter:
             exc_val: Exception value if an exception was raised in the context.
             exc_tb: Exception traceback if an exception was raised in the context.
         """
-        pass
+        return
