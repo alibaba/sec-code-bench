@@ -121,4 +121,7 @@ class LLMManager:
             name: Name of the instance
             instance: Instance to close
         """
-        return instance.sync_close()
+        try:
+            instance.sync_close()
+        except Exception as e:
+            LOG.warning(f"Error closing LLM instance '{name}': {e}")
