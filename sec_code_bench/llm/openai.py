@@ -18,6 +18,7 @@ from typing import Any, override
 
 import openai
 from openai import APIError, APITimeoutError, RateLimitError
+from openai.types.chat import ChatCompletion
 
 from sec_code_bench.llm.llm_base import (
     LLMAPIError,
@@ -60,10 +61,7 @@ class OPENAI(LLMBase):
 
     @override
     async def _aquery_implementation(
-        self,
-        sys_prompt: str,
-        user_prompt: str,
-        **kwargs: Any
+        self, sys_prompt: str, user_prompt: str, **kwargs: Any
     ) -> str:
         """Implementation of async query for OpenAI API.
 
@@ -119,7 +117,7 @@ class OPENAI(LLMBase):
 
             # Merge parameters with extra_body if both are provided
             extra_body = self.kwargs.get("extra_body", {}).copy()
-            
+
             # Build the request kwargs
             # temperature and top_p are set to default values here,
             # but can be overridden or excluded via parameters later.
@@ -131,10 +129,7 @@ class OPENAI(LLMBase):
                         "role": "system",
                         "content": sys_prompt if sys_prompt else "TODO",
                     },
-                    {
-                        "role": "user",
-                        "content": user_prompt
-                    },
+                    {"role": "user", "content": user_prompt},
                 ],
                 "temperature": DEFAULT_TEMPERATURE,
                 "top_p": DEFAULT_TOP_P,
@@ -159,15 +154,24 @@ class OPENAI(LLMBase):
             # Only add extra_body if it's not empty
             if extra_body:
                 request_kwargs["extra_body"] = extra_body
-           
+
             # log request_kwargs (excluding sensitive fields)
             filtered_kwargs = {
-                k: v for k, v in request_kwargs.items()
+                k: v
+                for k, v in request_kwargs.items()
                 if k not in ("eval_llm_list", "judge_llm_list")
             }
             LOG.info(f"OpenAI Request kwargs: {filtered_kwargs}")
-            
+
             response = await self.aclient.chat.completions.create(**request_kwargs)
+            if not isinstance(response, ChatCompletion):
+                LOG.error(
+                    f"Unexpected response type: {type(response).__name__}, "
+                    f"content: {response}"
+                )
+                raise LLMBaseException(
+                    f"Unexpected response type: {type(response).__name__}"
+                )
             content = response.choices[0].message.content
             return content or ""  # Ensure non-null return
         except APITimeoutError as e:  # Catch subclass first
