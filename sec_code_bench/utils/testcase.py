@@ -146,6 +146,11 @@ class Testcase:
                     while lines and not lines[-1].strip():
                         lines.pop()
 
+                    # Strip leading whitespace from the first line to handle
+                    # XML indentation between <content> and <![CDATA[ tags
+                    if lines:
+                        lines[0] = lines[0].lstrip()
+
                     extracted_code = "\n".join(lines)
                     break
         except Exception:

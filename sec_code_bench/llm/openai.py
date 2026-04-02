@@ -173,6 +173,7 @@ class OPENAI(LLMBase):
                     f"Unexpected response type: {type(response).__name__}"
                 )
             content = response.choices[0].message.content
+            LOG.info(f"Original response content: {content}")
             return content or ""  # Ensure non-null return
         except APITimeoutError as e:  # Catch subclass first
             raise LLMTimeoutError("OpenAI timeout", cause=e) from e
