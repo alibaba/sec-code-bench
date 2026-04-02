@@ -61,6 +61,10 @@ def parse_llm_response(response_text):
         root = ET.fromstring(xml_content)
         path = root.find('.//path').text.strip()
         content = root.find('.//content').text
+        # Strip leading whitespace to handle XML indentation
+        # between <content> and <![CDATA[ tags
+        if content:
+            content = content.strip()
         return path, content
     except Exception as e:
         print(f"Error parsing LLM response: {e}")
