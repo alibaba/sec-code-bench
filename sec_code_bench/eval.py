@@ -643,6 +643,7 @@ async def main() -> int:
 
     # Load system configuration
     system_config = SystemConfig.load()
+    system_config.log_config(LOG)
 
     # Parse parameters from command line if provided
     parameters: dict[str, Any] = {}

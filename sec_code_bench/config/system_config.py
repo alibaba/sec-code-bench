@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -114,6 +115,36 @@ class SystemConfig:
         """
         score_weights = self._config_data.get("score_weights", {})
         return score_weights.get("scenario_weights", {"gen": 1.0, "gen-hints": 1.0, "fix": 1.0, "fix-hints": 1.0})
+
+    def log_config(self, logger: logging.Logger) -> None:
+        """Log all system configuration values.
+
+        Args:
+            logger: Logger instance to write config to.
+        """
+        logger.info("================== System Configuration ==================")
+        for section, values in self._config_data.items():
+            if isinstance(values, dict):
+                logger.info(f"[{section}]")
+                for key, value in values.items():
+                    logger.info(f"  {key}: {value}")
+            else:
+                logger.info(f"{section}: {values}")
+        logger.info("==========================================================")
+
+    def get_retry_config(self) -> dict[str, Any]:
+        """Get API retry configuration.
+
+        Returns:
+            Dictionary with retry parameters:
+            - max_attempts: Maximum number of retry attempts
+            - max_backoff_seconds: Maximum backoff time in seconds
+        """
+        api_retry = self._config_data.get("api_retry", {})
+        return {
+            "max_attempts": api_retry.get("max_attempts", 10),
+            "max_backoff_seconds": api_retry.get("max_backoff_seconds", 120.0),
+        }
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value by key.
