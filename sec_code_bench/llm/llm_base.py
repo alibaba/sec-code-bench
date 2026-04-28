@@ -19,6 +19,7 @@ from typing import Any
 from tenacity import retry, retry_if_exception_type, stop_after_attempt
 from tenacity.wait import wait_base
 
+from sec_code_bench.config.system_config import SystemConfig
 from sec_code_bench.utils.logger_utils import Logger
 from sec_code_bench.utils.rate_limiter import RateLimiter
 
@@ -38,14 +39,16 @@ class wait_for_rate_limit(wait_base):
     """Custom wait function that checks for retry-after header
     in RateLimitError for sync methods"""
 
-    def __init__(self, fallback_wait: float = 3.0) -> None:
+    def __init__(self, fallback_wait: float = 3.0, max_backoff: float = 120.0) -> None:
         """Initialize the wait function with a fallback wait time.
 
         Args:
             fallback_wait: Default wait time in seconds
                 when no retry-after header is found
+            max_backoff: Maximum backoff time in seconds
         """
         self.fallback_wait = fallback_wait
+        self.max_backoff = max_backoff
 
     def __call__(self, retry_state: Any) -> float:
         """Calculate wait time based on retry state and headers.
@@ -103,8 +106,7 @@ class wait_for_rate_limit(wait_base):
             except Exception as e:
                 LOG.warning(f"Error while processing retry exception: {e}")
 
-        # Fallback to exponential backoff with max 10 seconds, starting from 2 seconds
-        sleep = min(10.0, (1 * (2**retry_state.attempt_number)))
+        sleep = min(self.max_backoff, (1 * (2**retry_state.attempt_number)))
         LOG.info(f"Sleeping for {sleep} seconds")
         return sleep
 
@@ -209,13 +211,15 @@ class LLMBase(ABC):
         self.rate_limit = rate_limit
         self._is_closed = False
 
-    @retry(
-        retry=retry_if_exception_type((LLMAPIError, LLMRateLimitError, LLMTimeoutError)),
-        stop=stop_after_attempt(5),  # Maximum 5 retry attempts
-        wait=wait_for_rate_limit(),  # exponential backoff
-        reraise=True,  # Re-raise the exception after all retries
-        before=Logger.log_before,
-    )
+        retry_config = SystemConfig().get_retry_config()
+        self.aquery = retry(
+            retry=retry_if_exception_type((LLMAPIError, LLMRateLimitError, LLMTimeoutError)),
+            stop=stop_after_attempt(retry_config["max_attempts"]),
+            wait=wait_for_rate_limit(max_backoff=retry_config["max_backoff_seconds"]),
+            reraise=True,
+            before=Logger.log_before,
+        )(self.aquery)
+
     async def aquery(self, sys_prompt: str, user_prompt: str, **kwargs: Any) -> str:
         """Asynchronous query method with rate limiting
 
