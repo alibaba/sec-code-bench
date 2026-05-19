@@ -112,6 +112,36 @@ cp config.example.yaml config.yaml
 | `experiment.rpm_limit` | 可选的 RPM（每分钟请求数）限制（默认：60） |
 | `directories.container_result` | 容器内结果目录路径（默认：`/dockershare`）。使用 Docker 时，宿主机目录由环境变量 `LOCAL_RESULT_DIR` 指定。 |
 
+`experiment.parameters` 会透传给被评测模型的 LLM 请求。对于 OpenAI 兼容
+API，`temperature`、`top_p`、`max_tokens`、`stream` 等标准请求字段会作为
+顶层字段发送；厂商自定义字段会放入 `extra_body`。
+
+如果要为 OpenAI 兼容的 LLM API 启用流式模式，将 `stream` 设置为 `true`：
+
+```yaml
+experiment:
+  cycle: 10
+  rpm_limit: 60
+  parameters: '{"stream": true, "enable_thinking": false}'
+```
+
+流式模式下，SecCodeBench 会在内部消费 stream chunks，并拼接成评测流程使用的
+完整响应字符串。因此评测流程和结果文件格式保持不变。该模式适用于只支持 stream
+响应的内部或第三方 LLM API。
+
+可以通过评测日志确认 stream 是否生效：
+
+```bash
+rg -n "Using parameters|OpenAI Request kwargs|Original streamed response content" \
+  <result-dir>/<model>-<timestamp>.log
+```
+
+关键日志含义：
+
+- `Using parameters: {'stream': True, ...}` 表示 JSON 参数解析成功。
+- `OpenAI Request kwargs: ... 'stream': True ...` 表示 LLM 请求已启用 stream。
+- `Original streamed response content:` 表示已收到流式 chunks 并成功拼接。
+
 **步骤 2：（可选）修改系统配置**
 
 如需调整，可修改 `system_config.yaml`：
@@ -312,4 +342,3 @@ docker compose -f docker-compose-verifiers.yml down
 ## 📄 许可证
 
 本项目采用 [Apache 2.0 license](LICENSE) 开源许可证。
-

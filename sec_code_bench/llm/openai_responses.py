@@ -14,9 +14,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from typing_extensions import override
+from typing import Any, override
 
 import openai
 from openai import APIError, APITimeoutError, RateLimitError
@@ -54,6 +52,19 @@ def _response_output_text(response: Response) -> str:
                     text = getattr(content, "text", None)
                     if text:
                         parts.append(text)
+    return "".join(parts)
+
+
+async def _responses_stream_text(response: Any) -> str:
+    """Collect OpenAI Responses API output text stream events into text."""
+    parts: list[str] = []
+    async for event in response:
+        if getattr(event, "type", None) != "response.output_text.delta":
+            continue
+
+        delta = getattr(event, "delta", None)
+        if isinstance(delta, str):
+            parts.append(delta)
     return "".join(parts)
 
 
@@ -108,7 +119,7 @@ class OpenAIResponses(LLMBase):
                 "temperature", "top_p", "reasoning",
                 "max_output_tokens", "max_tool_calls",
                 "tools", "tool_choice", "parallel_tool_calls",
-                "text", "truncation", "user", "store",
+                "stream", "text", "truncation", "user", "store",
                 "metadata", "include", "service_tier",
             }
 
@@ -139,6 +150,11 @@ class OpenAIResponses(LLMBase):
                 f"{ {k: v for k, v in create_kwargs.items() if k != 'input'} }"
             )
             response = await self.aclient.responses.create(**create_kwargs)
+            if create_kwargs.get("stream"):
+                content = await _responses_stream_text(response)
+                LOG.info(f"Responses API streamed response content: {content}")
+                return content
+
             return _response_output_text(response) or ""
         except APITimeoutError as e:
             LOG.error(f"Responses API timeout: {e}")
