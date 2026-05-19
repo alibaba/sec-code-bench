@@ -37,6 +37,26 @@ DEFAULT_TEMPERATURE = 0.6
 DEFAULT_TOP_P = 0.9
 
 
+async def _chat_stream_text(response: Any) -> str:
+    """Collect OpenAI-compatible chat completion stream chunks into text."""
+    parts: list[str] = []
+    async for chunk in response:
+        choices = getattr(chunk, "choices", None) or []
+        if not choices:
+            continue
+
+        delta = getattr(choices[0], "delta", None)
+        content = getattr(delta, "content", None)
+        if isinstance(content, str):
+            parts.append(content)
+        elif isinstance(content, list):
+            for item in content:
+                text = getattr(item, "text", None)
+                if isinstance(text, str):
+                    parts.append(text)
+    return "".join(parts)
+
+
 class OPENAI(LLMBase):
     """Accessing LLM In OPENAI Format"""
 
@@ -88,7 +108,8 @@ class OPENAI(LLMBase):
             # Parameters that should be placed at the top level of the request
             # instead of in extra_body.
             # These are standard OpenAI API parameters supported in version 1.108.1.
-            # Note: Some parameters may be model-specific (e.g., reasoning_effort for o1 models,
+            # Note: Some parameters may be model-specific
+            # (e.g., reasoning_effort for o1 models,
             # max_completion_tokens for o1 models instead of max_tokens).
             TOP_LEVEL_PARAMS = {
                 # Standard parameters (supported by most models)
@@ -105,10 +126,11 @@ class OPENAI(LLMBase):
                 "tools",
                 "tool_choice",
                 "response_format",
+                "stream",
                 "user",
                 "parallel_tool_calls",
                 # Model-specific parameters
-                "reasoning_effort",  # For reasoning models (e.g., "low", "medium", "high")
+                "reasoning_effort",  # For reasoning models.
                 # Sampling parameters (can be overridden or excluded via parameters)
                 # Use null in parameters to exclude, e.g., {"top_p": null}
                 "temperature",
@@ -164,6 +186,11 @@ class OPENAI(LLMBase):
             LOG.info(f"OpenAI Request kwargs: {filtered_kwargs}")
 
             response = await self.aclient.chat.completions.create(**request_kwargs)
+            if request_kwargs.get("stream"):
+                content = await _chat_stream_text(response)
+                LOG.info(f"Original streamed response content: {content}")
+                return content
+
             if not isinstance(response, ChatCompletion):
                 LOG.error(
                     f"Unexpected response type: {type(response).__name__}, "

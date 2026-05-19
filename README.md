@@ -113,6 +113,38 @@ Edit `config.yaml` to configure the following fields:
 | `experiment.rpm_limit` | Optional RPM (Requests Per Minute) limit for the evaluated LLM models (default: 60) |
 | `directories.container_result` | Path inside container for results (default: `/dockershare`). When using Docker, set host dir via env `LOCAL_RESULT_DIR`. |
 
+`experiment.parameters` is passed through to the evaluated LLM request. For
+OpenAI-compatible APIs, standard request fields such as `temperature`, `top_p`,
+`max_tokens`, and `stream` are sent as top-level request fields; provider-specific
+fields are sent in `extra_body`.
+
+To enable streaming mode for an OpenAI-compatible LLM API, set `stream` to `true`:
+
+```yaml
+experiment:
+  cycle: 10
+  rpm_limit: 60
+  parameters: '{"stream": true, "enable_thinking": false}'
+```
+
+In streaming mode, SecCodeBench consumes the streamed chunks internally and
+concatenates them into the same complete response string used by the evaluator.
+The evaluation workflow and result files are unchanged. This is useful for APIs
+that only support streaming responses.
+
+You can confirm streaming is enabled from the evaluation log:
+
+```bash
+rg -n "Using parameters|OpenAI Request kwargs|Original streamed response content" \
+  <result-dir>/<model>-<timestamp>.log
+```
+
+Expected log indicators:
+
+- `Using parameters: {'stream': True, ...}` means the JSON parameter was parsed.
+- `OpenAI Request kwargs: ... 'stream': True ...` means the LLM request used streaming.
+- `Original streamed response content:` means streamed chunks were received and merged.
+
 **Step 2: (Optional) Modify System Configuration**
 
 If needed, you can modify `system_config.yaml` to adjust:
