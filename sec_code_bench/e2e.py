@@ -48,6 +48,7 @@ from sec_code_bench import (
 )
 from sec_code_bench.config.system_config import SystemConfig
 from sec_code_bench.evaluator.base import EvaluatorResult, LanguageSupport
+from sec_code_bench.editor.cli import CliModelConfig
 from sec_code_bench.statistic.pass_at_k_statistic import stat_pass_at_k_score
 from sec_code_bench.statistic.statistic_manager import do_statistic
 from sec_code_bench.tester.remote_verifier import RemoteVerifyResult, verify_code
@@ -143,6 +144,21 @@ def parse_and_check_args() -> argparse.Namespace:
     args = parser.parse_args()
     e2e_checker(args, parser)
     return args
+
+
+def resolve_cli_binary(cli_binary: str | None) -> str | None:
+    """
+    Resolve a CLI binary path before testcase workers change cwd.
+
+    Plain command names such as "claude" are left untouched so PATH lookup
+    still works. Paths such as "./node_modules/.bin/claude" are made absolute
+    because each CLI subprocess runs from an isolated testcase workspace.
+    """
+    if not cli_binary:
+        return None
+    if "/" not in cli_binary:
+        return cli_binary
+    return str(Path(cli_binary).expanduser().resolve())
 
 
 def read_generated_code(code_dir: Path, params: dict[str, str]) -> str:
@@ -605,6 +621,16 @@ def main() -> int:
 
     # Initialize editor
     editor = EditorFactory.get_editor(args.editor)
+    if hasattr(editor, "set_model_config"):
+        editor.set_model_config(
+            CliModelConfig(
+                model=args.cli_model,
+                api_key=args.cli_api_key,
+                base_url=args.cli_base_url,
+                binary=resolve_cli_binary(args.cli_binary),
+                extra_args=tuple(args.cli_extra_arg or []),
+            )
+        )
 
     # Set up working directory
     work_dir = result_dir / "workspace"

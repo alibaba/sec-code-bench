@@ -62,3 +62,15 @@ class GeminiCliEditor(CliEditor):
             Extended arguments as list of strings
         """
         return ["--yolo"]
+
+    def _get_config_env(self) -> dict[str, str]:
+        """
+        Gemini CLI usually reads credentials from Gemini/Google env vars.
+        """
+        env: dict[str, str] = {}
+        if self.model_config.api_key:
+            env["GEMINI_API_KEY"] = self.model_config.api_key
+            env["GOOGLE_API_KEY"] = self.model_config.api_key
+        if self.model_config.base_url:
+            env["GEMINI_BASE_URL"] = self.model_config.base_url
+        return env

@@ -61,4 +61,41 @@ class ClaudeCodeEditor(CliEditor):
         Returns:
             Extended arguments as list of strings
         """
-        return ["--dangerously-skip-permissions"]
+        args: list[str] = []
+        if self.model_config.api_key:
+            args.extend(["--setting-sources", "project,local"])
+        args.append("--dangerously-skip-permissions")
+        return args
+
+    def _get_env(self) -> dict[str, str]:
+        """
+        Build a Claude Code environment from the current process while removing
+        auth settings that conflict with an explicitly supplied API key.
+        """
+        env = super()._get_env()
+
+        if self.model_config.api_key:
+            # Claude Code can load these from user settings or the shell and
+            # send an Authorization header alongside x-api-key. DashScope's
+            # Anthropic-compatible API rejects requests that contain both.
+            env.pop("ANTHROPIC_AUTH_TOKEN", None)
+            env.pop("ANTHROPIC_CUSTOM_HEADERS", None)
+            env.pop("CLAUDE_CODE_OAUTH_TOKEN", None)
+            env["ANTHROPIC_API_KEY"] = self.model_config.api_key
+
+        if self.model_config.base_url:
+            env["ANTHROPIC_BASE_URL"] = self.model_config.base_url
+
+        return env
+
+    def _get_config_env(self) -> dict[str, str]:
+        """
+        Claude Code supports --model directly; API credentials/base URL are
+        provided through Anthropic-compatible environment variables.
+        """
+        env: dict[str, str] = {}
+        if self.model_config.api_key:
+            env["ANTHROPIC_API_KEY"] = self.model_config.api_key
+        if self.model_config.base_url:
+            env["ANTHROPIC_BASE_URL"] = self.model_config.base_url
+        return env

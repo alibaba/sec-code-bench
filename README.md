@@ -289,6 +289,11 @@ docker compose -f docker-compose-verifiers.yml down
 | :------- | :---------- |
 | `--editor`, `-e` | **(Required)** Specify the CLI tool to evaluate (e.g., `claude-code`, `qwen-code`) |
 | `--lang-config` | **(Required)** Per-language configuration in format `language:locale:benchmark_path`. Can be specified multiple times for multi-language evaluation. Example: `java:en-US:./datasets/benchmark/java/java.json` |
+| `--cli-model` | Currently only supported for `claude-code`. Model name passed to Claude Code, such as via `--model`. |
+| `--cli-binary` | Currently only supported for `claude-code`. Override the Claude Code executable path/name, such as `./node_modules/.bin/claude`. |
+| `--cli-api-key` | Currently only supported for `claude-code`. API key passed to Claude Code through Anthropic-compatible environment variables. |
+| `--cli-base-url`, `--cli-model-url` | Currently only supported for `claude-code`. Model provider base URL passed to Claude Code through Anthropic-compatible environment variables. |
+| `--cli-extra-arg` | Currently only supported for `claude-code`. Extra raw argument passed to Claude Code. Can be repeated for tool-specific flags. |
 | `--judge-llm-list` | Judge LLMs provided as `PROVIDER::MODEL::API_KEY::BASE_URL`. Can be specified multiple times. **Must be odd number for majority voting.** |
 | `--experiment-cycle` | Number of experiment cycles for each test case (default: 10) |
 | `--threads` | Number of worker threads for parallel execution (default: 1) |

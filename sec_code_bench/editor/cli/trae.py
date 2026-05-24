@@ -62,3 +62,14 @@ class TraeCliEditor(CliEditor):
             Extended arguments as list of strings
         """
         return ["--yolo"]
+
+    def _get_config_env(self) -> dict[str, str]:
+        """Inject OpenAI-compatible provider settings for Trae CLI."""
+        env: dict[str, str] = {}
+        if self.model_config.api_key:
+            env["OPENAI_API_KEY"] = self.model_config.api_key
+            env["TRAE_API_KEY"] = self.model_config.api_key
+        if self.model_config.base_url:
+            env["OPENAI_BASE_URL"] = self.model_config.base_url
+            env["TRAE_BASE_URL"] = self.model_config.base_url
+        return env

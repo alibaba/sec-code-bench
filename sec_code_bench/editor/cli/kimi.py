@@ -62,3 +62,16 @@ class KimiCliEditor(CliEditor):
             Extended arguments as list of strings
         """
         return ["--print", "--yolo"]
+
+    def _get_config_env(self) -> dict[str, str]:
+        """
+        Kimi/Moonshot-compatible CLIs commonly read provider settings from env.
+        """
+        env: dict[str, str] = {}
+        if self.model_config.api_key:
+            env["MOONSHOT_API_KEY"] = self.model_config.api_key
+            env["KIMI_API_KEY"] = self.model_config.api_key
+        if self.model_config.base_url:
+            env["MOONSHOT_BASE_URL"] = self.model_config.base_url
+            env["KIMI_BASE_URL"] = self.model_config.base_url
+        return env
