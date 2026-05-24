@@ -62,3 +62,17 @@ class QoderCliEditor(CliEditor):
             Extended arguments as list of strings
         """
         return ["--dangerously-skip-permissions"]
+
+    def _get_config_env(self) -> dict[str, str]:
+        """
+        Qoder CLI provider settings are injected as OpenAI-compatible env vars
+        unless overridden with --cli-extra-args.
+        """
+        env: dict[str, str] = {}
+        if self.model_config.api_key:
+            env["OPENAI_API_KEY"] = self.model_config.api_key
+            env["QODER_API_KEY"] = self.model_config.api_key
+        if self.model_config.base_url:
+            env["OPENAI_BASE_URL"] = self.model_config.base_url
+            env["QODER_BASE_URL"] = self.model_config.base_url
+        return env

@@ -210,6 +210,57 @@ def e2e_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--cli-model",
+        type=str,
+        default=None,
+        help=(
+            "Model name passed to CLI editors when supported "
+            "(e.g., claude-code: --model, qwen-code: --model)."
+        ),
+    )
+
+    parser.add_argument(
+        "--cli-binary",
+        type=str,
+        default=None,
+        help=(
+            "Override the CLI executable path/name for the selected editor "
+            "(e.g., ./node_modules/.bin/claude)."
+        ),
+    )
+
+    parser.add_argument(
+        "--cli-api-key",
+        type=str,
+        default=None,
+        help=(
+            "API key passed to CLI editors. Some tools receive it as a CLI flag, "
+            "others as a child-process environment variable."
+        ),
+    )
+
+    parser.add_argument(
+        "--cli-base-url",
+        "--cli-model-url",
+        dest="cli_base_url",
+        type=str,
+        default=None,
+        help=(
+            "Model provider base URL passed to CLI editors. Alias: --cli-model-url."
+        ),
+    )
+
+    parser.add_argument(
+        "--cli-extra-arg",
+        action="append",
+        default=[],
+        help=(
+            "Extra raw argument passed to the selected CLI editor. Can be repeated; "
+            "use --cli-extra-arg=--flag for values that start with '-'."
+        ),
+    )
+
+    parser.add_argument(
         "--prompt",
         "-p",
         type=str,

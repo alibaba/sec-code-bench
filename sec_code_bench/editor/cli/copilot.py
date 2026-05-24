@@ -62,3 +62,14 @@ class CopilotCliEditor(CliEditor):
             Extended arguments as list of strings
         """
         return ["--allow-all"]
+
+    def _get_config_env(self) -> dict[str, str]:
+        """Inject OpenAI-compatible provider settings for Copilot CLI."""
+        env: dict[str, str] = {}
+        if self.model_config.api_key:
+            env["OPENAI_API_KEY"] = self.model_config.api_key
+            env["COPILOT_API_KEY"] = self.model_config.api_key
+        if self.model_config.base_url:
+            env["OPENAI_BASE_URL"] = self.model_config.base_url
+            env["COPILOT_BASE_URL"] = self.model_config.base_url
+        return env

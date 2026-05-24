@@ -284,6 +284,11 @@ docker compose -f docker-compose-verifiers.yml down
 | :--- | :--- |
 | `--editor`, `-e` | **（必需）** 指定要评测的 CLI 工具（如 `claude-code`、`qwen-code`） |
 | `--lang-config` | **（必需）** 语言配置，格式为 `language:locale:benchmark_path`。可多次指定以支持多语言评测。示例：`java:en-US:./datasets/benchmark/java/java.json` |
+| `--cli-model` | 目前仅支持 `claude-code`。传给 Claude Code 的模型名，例如通过 `--model` 指定。 |
+| `--cli-binary` | 目前仅支持 `claude-code`。覆盖 Claude Code 的可执行文件路径或名称，例如 `./node_modules/.bin/claude`。 |
+| `--cli-api-key` | 目前仅支持 `claude-code`。通过 Anthropic 兼容环境变量传给 Claude Code 的 API Key。 |
+| `--cli-base-url`, `--cli-model-url` | 目前仅支持 `claude-code`。通过 Anthropic 兼容环境变量传给 Claude Code 的模型服务 Base URL。 |
+| `--cli-extra-arg` | 目前仅支持 `claude-code`。额外透传给 Claude Code 的原始参数，可重复指定，用于工具特有参数。 |
 | `--judge-llm-list` | 评判模型，格式为 `PROVIDER::MODEL::API_KEY::BASE_URL`。可多次指定。**必须为奇数个以支持多数投票。** |
 | `--experiment-cycle` | 每个测试用例的实验轮次（默认：10） |
 | `--threads` | 并行执行的工作线程数（默认：1） |

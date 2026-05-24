@@ -65,3 +65,15 @@ class CodexEditor(CliEditor):
             "--skip-git-repo-check",
             "--dangerously-bypass-approvals-and-sandbox",
         ]
+
+    def _get_config_env(self) -> dict[str, str]:
+        """
+        Codex exposes --model directly; provider credentials are commonly read
+        from OpenAI-compatible environment variables.
+        """
+        env: dict[str, str] = {}
+        if self.model_config.api_key:
+            env["OPENAI_API_KEY"] = self.model_config.api_key
+        if self.model_config.base_url:
+            env["OPENAI_BASE_URL"] = self.model_config.base_url
+        return env

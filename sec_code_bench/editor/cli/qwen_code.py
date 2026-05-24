@@ -62,3 +62,19 @@ class QwenEditor(CliEditor):
             Extended arguments as list of strings
         """
         return ["--yolo"]
+
+    def _get_config_args(self) -> list[str]:
+        """
+        Qwen Code exposes OpenAI-compatible provider settings as CLI flags.
+        """
+        args: list[str] = []
+        if self.model_config.model:
+            args.extend(["--model", self.model_config.model])
+        if self.model_config.api_key:
+            args.extend(["--openai-api-key", self.model_config.api_key])
+        if self.model_config.base_url:
+            args.extend(["--openai-base-url", self.model_config.base_url])
+        if self.model_config.api_key or self.model_config.base_url:
+            args.extend(["--auth-type", "openai"])
+        args.extend(self.model_config.extra_args)
+        return args
