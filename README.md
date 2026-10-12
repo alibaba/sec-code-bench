@@ -27,8 +27,6 @@ To address these challenges, we introduce `SecCodeBench`, a benchmark suite feat
 
 *   **Hybrid Evaluation Methodology**: We employ a strategy that combines dynamic execution with multiple static analysis techniques. We not only verify code security with runnable Proofs of Concept (POCs) but also pioneer an **"LLM-as-a-Judge"** approach, enriching the judge model with extensive security knowledge. Our findings show that for complex vulnerabilities requiring deep semantic understanding, the LLM-based judge significantly outperforms traditional rule-based methods.
 
-For more details, please refer to the [technical report](docs/SecCodeBench_Technical_Report.pdf).
-
 ## ✨ Features
 
 *   **Security-Focused**: Unlike benchmarks that target functional correctness, `SecCodeBench` is exclusively designed to assess the secure coding capabilities of LLMs.
@@ -83,7 +81,7 @@ To ensure the reproducibility of our evaluation results, we strongly recommend u
 Clone a specific version of the repository using the following commands:
 
 ```bash
-# Clone the repository from [https://anonymous.4open.science/r/SecCodeBench-508E](https://github.com/Master-PLC/SecCodeBench/edit/main/README.md)
+# Clone the repository from https://github.com/Master-PLC/SecCodeBench.git
 cd SecCodeBench
 ```
 
