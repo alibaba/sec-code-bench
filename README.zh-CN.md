@@ -14,6 +14,9 @@
 
 </div>
 
+> [!重要]
+> **📢 仓库迁移公告**：本仓库已不再活跃维护，SecCodeBench 的后续开发工作已全部迁移至新仓库：**[alibaba/last-secure-code-benchmark](https://github.com/alibaba/last-secure-code-benchmark)**。请前往新仓库获取最新代码、数据与文档，并在新仓库提交 Issue 与 PR。
+
 SecCodeBench是一个由阿里巴巴集团与清华大学网络科学与网络空间研究院、浙江大学网络空间安全学院、复旦大学、北京大学共建的、专为现代智能编码工具设计的评测生成代码安全性的基准测试套件。
 
 ## 📖 概述
