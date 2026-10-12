@@ -13,6 +13,9 @@
 
 </div>
 
+> [!IMPORTANT]
+> **📢 Repository Moved**: This repository is no longer actively maintained. All future development of SecCodeBench has moved to the new repository: **[alibaba/last-secure-code-benchmark](https://github.com/alibaba/last-secure-code-benchmark)**. Please visit the new repository for the latest code, datasets, documentation, issues, and contributions.
+
 SecCodeBench is a benchmark suite for evaluating the security of AI-generated code, specifically designed for modern Agentic Coding Tool. It is jointly developed by Alibaba Group in collaboration with the the Institute for Network Sciences and Cyberspace at Tsinghua University, the School of CyberScience and Technology at Zhejiang University, Fudan University, and Peking University.
 
 ## 📖 Overview
